@@ -4,6 +4,12 @@ import { copperRequest } from "../copperClient.js";
 import type { CopperOpportunity } from "../copperTypes.js";
 import { errorResult, textResult } from "./result.js";
 
+/** Copper returns contact timestamps as Unix seconds; surface a readable date. */
+function toIsoDate(unixSeconds?: number | null): string | null {
+  if (!unixSeconds) return null;
+  return new Date(unixSeconds * 1000).toISOString().slice(0, 10);
+}
+
 export function registerSearchOpportunities(server: McpServer): void {
   server.registerTool(
     "search_opportunities",
@@ -13,8 +19,11 @@ export function registerSearchOpportunities(server: McpServer): void {
         "List and filter opportunities (deals) in Copper. Filter by pipeline, stage, or " +
         "assignee to triage a book of business. Returns each deal's id, name, monetary_value, " +
         "pipeline_id, pipeline_stage_id, close_date, company_name, and assignee_id. " +
-        "Stage and pipeline are returned as IDs — call list_pipelines to map them to names. " +
-        "Use get_opportunity for the full record (custom fields, tags, contacts).",
+        "It also returns date_last_contacted (the last call/meeting/email date) and " +
+        "interaction_count, so you can spot stale deals directly from this one call without " +
+        "fetching each opportunity. Stage and pipeline are returned as IDs — call " +
+        "list_pipelines to map them to names. Use get_opportunity for the full record " +
+        "(custom fields, tags, contacts).",
       inputSchema: {
         pipeline_id: z
           .number()
@@ -68,6 +77,8 @@ export function registerSearchOpportunities(server: McpServer): void {
           close_date: o.close_date ?? null,
           company_name: o.company_name ?? null,
           assignee_id: o.assignee_id ?? null,
+          date_last_contacted: toIsoDate(o.date_last_contacted),
+          interaction_count: o.interaction_count ?? 0,
         }));
         return textResult(rows);
       } catch (err) {

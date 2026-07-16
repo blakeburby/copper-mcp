@@ -37,6 +37,9 @@ export interface CopperOpportunity {
   company_name?: string | null;
   assignee_id?: number | null;
   primary_contact_id?: number | null;
+  /** Unix seconds of the last interaction (call/meeting/email), or null. */
+  date_last_contacted?: number | null;
+  interaction_count?: number | null;
   [key: string]: unknown;
 }
 
