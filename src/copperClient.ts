@@ -23,6 +23,22 @@ export class CopperApiError extends Error {
 
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
+/** How many total attempts (1 initial + retries) for a transient failure. */
+const MAX_ATTEMPTS = 3;
+/** Per-request timeout so a hung socket fails fast and can be retried. */
+const REQUEST_TIMEOUT_MS = 15_000;
+
+/**
+ * Statuses worth retrying. These all mean Copper did NOT process the request at
+ * the application layer (rate-limited or a gateway hiccup), so retrying is safe
+ * even for the write tools — it can't produce a duplicate. A 4xx (bad request)
+ * or 500 is deliberately NOT retried.
+ */
+const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
 function getCredentials(): { apiKey: string; userEmail: string } {
   const apiKey = process.env.COPPER_API_KEY;
   const userEmail = process.env.COPPER_USER_EMAIL;
@@ -75,31 +91,54 @@ export async function copperRequest<T>(
   body?: unknown,
 ): Promise<T> {
   const { apiKey, userEmail } = getCredentials();
+  const url = `${BASE_URL}${path}`;
+  const init: RequestInit = {
+    method,
+    headers: {
+      "X-PW-AccessToken": apiKey,
+      "X-PW-Application": "developer_api",
+      "X-PW-UserEmail": userEmail,
+      "Content-Type": "application/json",
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  };
 
-  let response: Response;
-  try {
-    response = await fetch(`${BASE_URL}${path}`, {
-      method,
-      headers: {
-        "X-PW-AccessToken": apiKey,
-        "X-PW-Application": "developer_api",
-        "X-PW-UserEmail": userEmail,
-        "Content-Type": "application/json",
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-  } catch (err) {
-    // Network-level failure (DNS, TLS, offline) — never reached the API.
-    throw new CopperApiError(
-      0,
-      `Could not reach the Copper API: ${err instanceof Error ? err.message : String(err)}`,
-    );
+  // Retry transient failures (network throws like undici's "fetch failed" from a
+  // reused-but-dead keep-alive socket, plus 429/5xx gateway blips) with backoff.
+  // This is what keeps a live demo from dying on a one-off connection reset.
+  let lastNetworkError = "";
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...init,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (err) {
+      // Network-level failure (reset/timeout/DNS/offline) — never got a response.
+      lastNetworkError = err instanceof Error ? err.message : String(err);
+      if (attempt < MAX_ATTEMPTS) {
+        await sleep(300 * attempt);
+        continue;
+      }
+      throw new CopperApiError(
+        0,
+        `Could not reach the Copper API after ${MAX_ATTEMPTS} attempts: ${lastNetworkError}`,
+      );
+    }
+
+    const text = await response.text();
+    if (!response.ok) {
+      if (RETRYABLE_STATUSES.has(response.status) && attempt < MAX_ATTEMPTS) {
+        await sleep(300 * attempt);
+        continue;
+      }
+      throw new CopperApiError(response.status, humanizeError(response.status, text));
+    }
+
+    return (text ? JSON.parse(text) : {}) as T;
   }
 
-  const text = await response.text();
-  if (!response.ok) {
-    throw new CopperApiError(response.status, humanizeError(response.status, text));
-  }
-
-  return (text ? JSON.parse(text) : {}) as T;
+  // Unreachable — the loop either returns or throws — but satisfies the type checker.
+  throw new CopperApiError(0, `Could not reach the Copper API: ${lastNetworkError}`);
 }
