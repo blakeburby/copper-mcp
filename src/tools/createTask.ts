@@ -5,7 +5,13 @@ import { errorResult, textResult } from "./result.js";
 
 /** Convert an ISO date (or date-time) string to the Unix seconds Copper expects. */
 function toUnixSeconds(dateStr: string): number {
-  const ms = Date.parse(dateStr);
+  const trimmed = dateStr.trim();
+  // A bare calendar date (YYYY-MM-DD) is parsed as UTC midnight, which Copper then
+  // renders in the account's timezone — shifting it to the previous evening for any
+  // negative-offset (US) timezone. Anchor bare dates at noon UTC so the calendar day
+  // survives the conversion everywhere. Explicit date-times are honored as given.
+  const isBareDate = /^\d{4}-\d{2}-\d{2}$/.test(trimmed);
+  const ms = Date.parse(isBareDate ? `${trimmed}T12:00:00Z` : trimmed);
   if (Number.isNaN(ms)) {
     throw new CopperApiError(
       0,
