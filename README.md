@@ -103,7 +103,7 @@ opens the stdio transport.
 
 ---
 
-Built by **Hasan Khadra** — hasankhadra2013@gmail.com.
+Built by **Hasan Khadra** — hk@hasankhadra.me · [hasankhadra.me](https://hasankhadra.me).
 
 The official version ships with full OAuth 2.1, write coverage across the CRM,
 and a two-week fixed-scope delivery.

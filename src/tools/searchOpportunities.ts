@@ -46,7 +46,6 @@ export function registerSearchOpportunities(server: McpServer): void {
         // to the agent and wrap them here.
         const body: Record<string, unknown> = {
           page_size: page_size ?? 20,
-          sort_by: "close_date",
         };
         if (pipeline_id !== undefined) body.pipeline_ids = [pipeline_id];
         if (pipeline_stage_id !== undefined) body.pipeline_stage_ids = [pipeline_stage_id];
