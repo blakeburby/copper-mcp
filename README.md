@@ -24,7 +24,7 @@ schedule a follow-up.
 ## Install (3 steps)
 
 ```bash
-git clone https://github.com/<your-username>/copper-mcp.git
+git clone https://github.com/hasankhadra/copper-mcp.git
 cd copper-mcp
 npm install && npm run build
 ```
