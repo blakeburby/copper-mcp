@@ -22,6 +22,15 @@ export interface CopperConfig {
   screenshotDir: string;
   /** Log verbosity. */
   logLevel: LogLevel;
+  /**
+   * Playwright browser channel, e.g. "chrome" to drive the real installed
+   * Google Chrome instead of Playwright's bundled Chromium. Some apps do not
+   * render correctly in the bundled build (it runs with software rendering and
+   * a large set of disabled features), so this is the first thing to try when a
+   * page loads its third-party widgets but never boots its own app.
+   * Undefined = bundled Chromium.
+   */
+  browserChannel?: string;
 }
 
 function envBool(value: string | undefined, fallback: boolean): boolean {
@@ -62,6 +71,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CopperConfig {
       env.COPPER_SCREENSHOT_DIR ?? "./artifacts/screenshots",
     ),
     logLevel: envLogLevel(env.LOG_LEVEL, "info"),
+    browserChannel: env.COPPER_BROWSER_CHANNEL?.trim() || undefined,
   };
 
   return cached;

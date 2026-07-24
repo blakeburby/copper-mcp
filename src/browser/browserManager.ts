@@ -48,9 +48,10 @@ export class BrowserManager {
     await mkdir(cfg.userDataDir, { recursive: true });
 
     const headless = headlessOverride ?? cfg.headless;
-    rootLogger.info("Launching persistent Chromium context", {
+    rootLogger.info("Launching persistent browser context", {
       userDataDir: cfg.userDataDir,
       headless,
+      channel: cfg.browserChannel ?? "bundled-chromium",
     });
 
     let context: BrowserContext;
@@ -59,6 +60,9 @@ export class BrowserManager {
         headless,
         viewport: { width: 1440, height: 900 },
         args: ["--disable-blink-features=AutomationControlled"],
+        // When set (e.g. "chrome"), Playwright drives the real installed
+        // browser rather than its bundled Chromium build.
+        ...(cfg.browserChannel ? { channel: cfg.browserChannel } : {}),
       });
     } catch (err) {
       throw errors.browser(

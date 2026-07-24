@@ -15,6 +15,7 @@ import { retryAsync } from "../utils/retry.js";
 import { errors, CopperToolError } from "../types/errors.js";
 import { captureDiagnostics } from "../browser/diagnostics.js";
 import {
+  auth,
   globalSearch,
   list,
   routes,
@@ -136,15 +137,23 @@ export class BasePage {
    * the SPA router reacts (page.goto would not reload a same-document hash change).
    */
   async gotoAppRoute(hash: string): Promise<void> {
-    const full = `${await this.appBaseUrl()}${hash}`;
-    const samePath = this.page.url().split("#")[0] === full.split("#")[0];
-    if (samePath) {
-      await this.page.evaluate((h) => {
-        window.location.hash = h;
-      }, hash);
-    } else {
-      await this.gotoPath(full);
+    // Boot the app shell FIRST, then route client-side.
+    //
+    // Cold-loading a deep link (e.g. ?fullProfile=people-123) as the very first
+    // navigation leaves Copper stuck on a spinner: its own onboarding widgets
+    // render, but the app never hydrates. Loading the shell and then changing
+    // the hash is what a human does, and it boots reliably.
+    const base = await this.appBaseUrl();
+    const onShell = this.page.url().startsWith(base);
+
+    if (!onShell) {
+      await this.gotoPath(base);
+      await this.waitForAppReady();
     }
+
+    await this.page.evaluate((h) => {
+      window.location.hash = h;
+    }, hash);
     await this.waitForSettled();
   }
 
@@ -186,6 +195,36 @@ export class BasePage {
       // networkidle can be flaky on SPAs with long-poll connections; fall back
       // to domcontentloaded which will already have fired.
       this.log.debug("networkidle wait timed out; continuing.");
+    }
+  }
+
+  /**
+   * Wait until Copper's SPA has actually rendered.
+   *
+   * Two things make this necessary, both learned from failure artifacts:
+   *  - networkidle never fires (Intercom holds long-poll sockets open), so
+   *    waitForSettled() returns while the app is still booting.
+   *  - Waiting for a spinner to DISAPPEAR is the wrong shape: on a cold profile
+   *    the spinner has not painted yet either, so "no spinner" is
+   *    indistinguishable from "not started". An earlier version of this method
+   *    made exactly that mistake and skipped waiting altogether.
+   *
+   * So wait for a POSITIVE signal — the authenticated app shell — which only
+   * exists once Ember has hydrated. A cold profile downloads the whole bundle,
+   * hence the generous budget.
+   */
+  async waitForAppReady(timeout = 60_000): Promise<boolean> {
+    const shell = auth.appShell.primary(this.page).first();
+    const shellFallback = auth.appShell.fallback(this.page).first();
+    try {
+      await Promise.race([
+        shell.waitFor({ state: "visible", timeout }),
+        shellFallback.waitFor({ state: "visible", timeout }),
+      ]);
+      return true;
+    } catch {
+      this.log.warn("Copper app shell did not render within budget — the SPA may still be booting.");
+      return false;
     }
   }
 

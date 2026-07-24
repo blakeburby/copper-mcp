@@ -92,8 +92,20 @@ export const routes = {
    * The short form `#/contact/{id}` also works and REDIRECTS to the above, so we
    * use the canonical fullProfile form directly.
    */
-  recordView: (kind: EntityKind, id: string): string =>
-    `#/browse/list/${PLURAL[kind]}/default?fullProfile=${PLURAL[kind]}-${id}`,
+  recordView: (kind: EntityKind, id: string): string => {
+    // Use the SHORT form. VERIFIED 2026-07-24: navigating to
+    // #/contact/<id> loads and then redirects itself to the canonical
+    // ?fullProfile=... URL, whereas routing straight to the fullProfile form
+    // leaves the app stuck on a spinner. Copper evidently needs to resolve the
+    // record before the list route can render the panel over it.
+    const short: Record<EntityKind, string> = {
+      person: "contact",
+      company: "company",
+      opportunity: "opportunity",
+      lead: "lead",
+    };
+    return `#/${short[kind]}/${id}`;
+  },
 
   /**
    * Extract a record id from any Copper URL/href. VERIFIED 2026-07-24 — handles
@@ -134,6 +146,22 @@ export const auth = {
     "login screen",
     (s) => asPage(s).getByPlaceholder(/account email/i),
     (s) => asPage(s).getByRole("link", { name: /sign in with (google|sso)/i }).first(),
+    true,
+  ),
+};
+
+/**
+ * App loading indicator. VERIFIED 2026-07-24 from a failure artifact: a record
+ * navigation that looked "settled" was still showing
+ * `LoadingIcon LoadingIcon-centered` / `CircleSpinner` with no app content at
+ * all. networkidle never fires on this SPA (Intercom holds long-poll sockets
+ * open), so readiness must be judged from the DOM, not the network.
+ */
+export const loading = {
+  spinner: entry(
+    "app loading spinner",
+    (s) => asPage(s).locator(".LoadingIcon, .CircleSpinner").first(),
+    (s) => asPage(s).locator("[class*='Loading' i], [class*='Spinner' i]").first(),
     true,
   ),
 };

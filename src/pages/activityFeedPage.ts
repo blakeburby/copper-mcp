@@ -61,6 +61,8 @@ export class ActivityFeedPage extends BasePage {
 
     await this.gotoAppRoute(routes.recordView(kind, encodeURIComponent(recordId)));
     await this.waitForSettled();
+    // networkidle is not enough on this SPA — wait for the spinner to clear.
+    await this.waitForAppReady();
 
     // resolve() (not tryResolve) — a missing container must throw.
     let container: Locator;

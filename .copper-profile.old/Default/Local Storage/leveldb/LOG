@@ -1,0 +1,6 @@
+2026/07/24-15:50:01.766 edb481 Reusing MANIFEST /Users/blakeburby/Projects/copper-mcp/.copper-profile/Default/Local Storage/leveldb/MANIFEST-000001
+2026/07/24-15:50:01.770 edb481 Recovering log #8
+2026/07/24-15:50:01.772 edb481 Reusing old log /Users/blakeburby/Projects/copper-mcp/.copper-profile/Default/Local Storage/leveldb/000008.log 
+2026/07/24-15:51:01.793 edb484 Level-0 table #11: started
+2026/07/24-15:51:01.804 edb484 Level-0 table #11: 18851 bytes OK
+2026/07/24-15:51:01.808 edb484 Delete type=0 #8
