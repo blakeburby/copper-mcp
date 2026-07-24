@@ -26,10 +26,10 @@ export interface InitializeResult {
 }
 
 /** Open Copper in the shared page (does not assert auth). */
-export async function openCopper(headlessOverride?: boolean): Promise<Page> {
+export async function openCopper(opts: { headless?: boolean } = {}): Promise<Page> {
   const cfg = loadConfig();
   const manager = getBrowserManager();
-  const page = await manager.getPage(headlessOverride);
+  const page = await manager.getPage(opts.headless);
   await page.goto(`${cfg.baseUrl}${routes.appHome}`, {
     waitUntil: "domcontentloaded",
     timeout: cfg.navigationTimeoutMs,
@@ -49,8 +49,9 @@ export async function initializeSession(
   const maxWaitMs = opts.maxWaitMs ?? 5 * 60_000; // 5 minutes for manual login.
   const pollIntervalMs = opts.pollIntervalMs ?? 2_000;
 
-  // Force headed so the user can actually sign in.
-  const page = await openCopper(true);
+  // Force a VISIBLE browser: this is the one flow whose entire purpose is
+  // letting a human sign in, so headless makes it unusable by definition.
+  const page = await openCopper({ headless: false });
 
   const initial = await detectAuthState(page, log);
   if (initial.authenticated) {
