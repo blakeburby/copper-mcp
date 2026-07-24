@@ -24,6 +24,7 @@ import { registerCaptureDiagnostics } from "./tools/captureDiagnostics.js";
 // Read tools
 import { registerSearchPeople } from "./tools/searchPeople.js";
 import { registerGetPerson } from "./tools/getPerson.js";
+import { registerGetPersonActivities } from "./tools/getPersonActivities.js";
 import { registerSearchCompanies } from "./tools/searchCompanies.js";
 import { registerSearchOpportunities } from "./tools/searchOpportunities.js";
 import { registerListPipelines } from "./tools/listPipelines.js";
@@ -36,7 +37,7 @@ import { registerCreateTask } from "./tools/createTask.js";
 async function main(): Promise<void> {
   const server = new McpServer({
     name: "copper-mcp",
-    version: "0.2.0",
+    version: "0.3.0",
   });
 
   // Session + diagnostics.
@@ -47,6 +48,7 @@ async function main(): Promise<void> {
   // Read tools.
   registerSearchPeople(server);
   registerGetPerson(server);
+  registerGetPersonActivities(server);
   registerSearchCompanies(server);
   registerSearchOpportunities(server);
   registerListPipelines(server);

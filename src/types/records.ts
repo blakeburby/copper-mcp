@@ -68,6 +68,51 @@ export interface ActivitySummary {
   details: string | null;
   date: string | null;
   author: string | null;
+
+  // --- Enrichment added 2026-07-24 after verifying the live feed -------------
+  // All optional so existing callers (get_person, get_opportunity) keep working.
+
+  /** ISO-8601 UTC instant parsed from <time datetime>. The authoritative time. */
+  occurredAtIso?: string | null;
+  /** The rendered time text ("2:30 PM") — display only, never parse this. */
+  occurredAtRaw?: string | null;
+  /** Actor relative to the signed-in user. */
+  actorKind?: "self" | "other" | "system" | "unknown";
+  /** Communication channel implied by the activity type. */
+  channel?: string | null;
+  /** Who initiated: inbound = buyer, outbound = your outreach. */
+  direction?: "inbound" | "outbound" | "unknown";
+  /** Provenance of `direction` — measured beats inferred. */
+  directionSource?: "measured_email" | "measured_type" | "inferred_text" | "unknown";
+  /** 0..1 confidence in the direction call. */
+  directionConfidence?: number;
+  /** Which rule produced `direction`, so a downstream score stays auditable. */
+  directionEvidence?: string | null;
+  /** True when type/channel came from phrasing rather than an explicit field. */
+  inferred?: boolean;
+}
+
+/**
+ * Whether the feed was genuinely read.
+ *
+ * This exists to make one specific failure impossible: an empty array that
+ * actually means "the selector broke". A scoring system consuming that would
+ * mark every contact cold. `confirmedEmpty` requires a POSITIVE empty-state
+ * signal; a missing container throws SELECTOR_FAILURE instead of returning [].
+ */
+export type FeedState = "populated" | "confirmed_empty";
+
+export interface ActivityFeedResult {
+  activities: ActivitySummary[];
+  feedState: FeedState;
+  /** Items the container yielded, before parsing. */
+  itemsSeen: number;
+  /** Items from which a usable timestamp was extracted. */
+  itemsParsed: number;
+  /** Non-fatal parse concerns worth surfacing (e.g. a low parse rate). */
+  parseWarnings: string[];
+  /** Bumped whenever the parser changes, so stored events stay traceable. */
+  parserVersion: string;
 }
 
 export interface TaskSummary {

@@ -56,10 +56,14 @@ export class BasePage {
    */
   async resolve(
     entry: SelectorEntry,
-    opts: { scope?: Scope; timeout?: number } = {},
+    opts: { scope?: Scope; timeout?: number; state?: "visible" | "attached" } = {},
   ): Promise<Locator> {
     const scope = opts.scope ?? this.page;
     const timeout = opts.timeout ?? this.selectorTimeout;
+    // "attached" is for containers that legitimately render with zero height
+    // when empty — an empty feed list is present but invisible, and demanding
+    // visibility there would report a real empty state as a selector failure.
+    const state = opts.state ?? "visible";
 
     // The primary gets a SHORTER probe than the fallback. A role/label-based
     // primary that is going to match a loaded page matches quickly; when it
@@ -71,7 +75,7 @@ export class BasePage {
 
     const primary = entry.primary(scope);
     try {
-      await primary.first().waitFor({ state: "visible", timeout: primaryTimeout });
+      await primary.first().waitFor({ state, timeout: primaryTimeout });
       return primary;
     } catch {
       this.log.debug(`Primary selector missed: ${entry.description}; trying fallback.`);
@@ -79,7 +83,7 @@ export class BasePage {
 
     const fallback = entry.fallback(scope);
     try {
-      await fallback.first().waitFor({ state: "visible", timeout });
+      await fallback.first().waitFor({ state, timeout });
       this.log.debug(`Fallback selector matched: ${entry.description}.`);
       return fallback;
     } catch {

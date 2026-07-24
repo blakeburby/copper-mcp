@@ -1,6 +1,6 @@
 {
   "name": "copper-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Unofficial, browser-automation MCP server for Copper CRM — drives the Copper web app with Playwright, no API key required. Read-heavy, with confirm-gated writes.",
   "type": "module",
   "license": "MIT",
