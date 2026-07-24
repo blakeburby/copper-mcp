@@ -24,6 +24,7 @@ import { registerCaptureDiagnostics } from "./tools/captureDiagnostics.js";
 // Read tools
 import { registerSearchPeople } from "./tools/searchPeople.js";
 import { registerGetPerson } from "./tools/getPerson.js";
+import { registerListPeople } from "./tools/listPeople.js";
 import { registerGetPersonActivities } from "./tools/getPersonActivities.js";
 import { registerSearchCompanies } from "./tools/searchCompanies.js";
 import { registerSearchOpportunities } from "./tools/searchOpportunities.js";
@@ -49,6 +50,7 @@ async function main(): Promise<void> {
   registerSearchPeople(server);
   registerGetPerson(server);
   registerGetPersonActivities(server);
+  registerListPeople(server);
   registerSearchCompanies(server);
   registerSearchOpportunities(server);
   registerListPipelines(server);

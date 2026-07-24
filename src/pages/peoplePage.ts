@@ -22,6 +22,21 @@ export class PeoplePage extends BasePage {
     });
   }
 
+  /**
+   * List people from the People view WITHOUT searching.
+   *
+   * search_people needs a query, which makes "sync everyone" awkward and
+   * silently partial — a query that matches nothing looks identical to an empty
+   * CRM. Loading the list directly is the honest primitive for enumeration.
+   */
+  async list(limit: number): Promise<PersonSummary[]> {
+    return this.read("list_people", async () => {
+      await this.gotoAppRoute(routes.hash.people);
+      const rows = await this.collectRowLinks(limit);
+      return rows.map((r) => this.toSummary(r.name, r.href));
+    });
+  }
+
   /** Open a single person record and extract detail fields. */
   async get(personId: string): Promise<PersonDetail> {
     return this.read("get_person", async () => {
