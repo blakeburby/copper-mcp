@@ -72,6 +72,7 @@ export class ActivityFeedPage extends BasePage {
       const diag = await captureDiagnostics(this.raw, "activity_feed_container", {
         includeHtml: true,
         logger: this.log,
+        consoleMessages: this.consoleMessages,
       });
       const e =
         err instanceof CopperToolError

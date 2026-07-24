@@ -32,10 +32,24 @@ const PRIMARY_PROBE_MS = 2_000;
 export class BasePage {
   protected readonly cfg = loadConfig();
 
+  /** Ring buffer of the page's own console output and uncaught errors. */
+  private readonly consoleBuffer: string[] = [];
+  private static readonly MAX_CONSOLE = 300;
+
   constructor(
     protected readonly page: Page,
     protected readonly log: Logger = createLogger(),
   ) {
+    const record = (line: string) => {
+      this.consoleBuffer.push(`${new Date().toISOString()} ${line}`);
+      if (this.consoleBuffer.length > BasePage.MAX_CONSOLE) this.consoleBuffer.shift();
+    };
+    this.page.on("console", (m) => record(`[console.${m.type()}] ${m.text()}`));
+    this.page.on("pageerror", (e) => record(`[pageerror] ${e.message}`));
+    this.page.on("requestfailed", (r) =>
+      record(`[requestfailed] ${r.method()} ${r.url()} — ${r.failure()?.errorText ?? "?"}`),
+    );
+
     // Auto-dismiss unexpected native dialogs so they can't wedge automation.
     this.page.on("dialog", (dialog: Dialog) => {
       this.log.warn("Auto-dismissing native dialog", {
@@ -137,24 +151,32 @@ export class BasePage {
    * the SPA router reacts (page.goto would not reload a same-document hash change).
    */
   async gotoAppRoute(hash: string): Promise<void> {
-    // Boot the app shell FIRST, then route client-side.
+    // Boot the shell, WAIT for it to finish booting, and only then route.
     //
-    // Cold-loading a deep link (e.g. ?fullProfile=people-123) as the very first
-    // navigation leaves Copper stuck on a spinner: its own onboarding widgets
-    // render, but the app never hydrates. Loading the shell and then changing
-    // the hash is what a human does, and it boots reliably.
+    // Copper uses ember-concurrency, and its route sync is a `drop` task: while
+    // one transition is in flight, any new one is cancelled outright. Changing
+    // the hash too early therefore kills the transition and leaves the app on a
+    // spinner forever, with only this in the console:
+    //
+    //   Error while processing route: contact
+    //   TaskInstance 'syncTask' was canceled because it belongs to a 'drop'
+    //   Task that was already running.
+    //
+    // appBaseUrl() waits only for the URL to match, NOT for the app to be
+    // usable — so the readiness wait below must happen unconditionally, not
+    // just when we had to navigate.
     const base = await this.appBaseUrl();
-    const onShell = this.page.url().startsWith(base);
-
-    if (!onShell) {
+    if (!this.page.url().startsWith(base)) {
       await this.gotoPath(base);
-      await this.waitForAppReady();
     }
+    await this.waitForAppReady();
 
     await this.page.evaluate((h) => {
       window.location.hash = h;
     }, hash);
     await this.waitForSettled();
+    // The hash change starts a fresh transition; let it finish before reading.
+    await this.waitForAppReady();
   }
 
   /** Navigate to an app path (relative to the configured base URL). */
@@ -288,6 +310,7 @@ export class BasePage {
       const diag = await captureDiagnostics(this.page, `read_${label}`, {
         includeHtml: true,
         logger: this.log,
+        consoleMessages: this.consoleBuffer,
       });
       if (err instanceof CopperToolError) {
         err.artifactPath = diag.screenshotPath;
@@ -299,6 +322,11 @@ export class BasePage {
       wrapped.artifactPath = diag.screenshotPath;
       throw wrapped;
     }
+  }
+
+  /** The page's buffered console output, for diagnostics. */
+  get consoleMessages(): string[] {
+    return [...this.consoleBuffer];
   }
 
   get raw(): Page {

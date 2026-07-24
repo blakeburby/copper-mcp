@@ -15,6 +15,7 @@ import { rootLogger, type Logger } from "../utils/logger.js";
 export interface DiagnosticsResult {
   screenshotPath?: string;
   htmlPath?: string;
+  consolePath?: string;
   url?: string;
   title?: string;
 }
@@ -45,7 +46,7 @@ export function sanitizeHtml(html: string): string {
 export async function captureDiagnostics(
   page: Page | undefined,
   label: string,
-  opts: { includeHtml?: boolean; logger?: Logger } = {},
+  opts: { includeHtml?: boolean; logger?: Logger; consoleMessages?: string[] } = {},
 ): Promise<DiagnosticsResult> {
   const log = opts.logger ?? rootLogger;
   const result: DiagnosticsResult = {};
@@ -76,6 +77,15 @@ export async function captureDiagnostics(
       const html = await page.content();
       await writeFile(htmlPath, sanitizeHtml(html), "utf8");
       result.htmlPath = htmlPath;
+    }
+
+    // The page's OWN errors are usually the fastest route to a diagnosis: an
+    // exception during app boot explains a blank screen far better than a
+    // screenshot of the blank screen does.
+    if (opts.consoleMessages?.length) {
+      const consolePath = join(cfg.screenshotDir, `${base}.console.log`);
+      await writeFile(consolePath, opts.consoleMessages.join("\n"), "utf8");
+      result.consolePath = consolePath;
     }
 
     log.info("Captured diagnostics", {
