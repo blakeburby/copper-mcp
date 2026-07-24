@@ -47,11 +47,11 @@ export class OpportunitiesPage extends BasePage {
 
   async get(opportunityId: string): Promise<OpportunityDetail> {
     return this.read("get_opportunity", async () => {
-      await this.gotoAppRoute(routes.recordView.opportunity(encodeURIComponent(opportunityId)));
+      await this.gotoAppRoute(routes.recordView("opportunity", encodeURIComponent(opportunityId)));
       await this.waitForSettled();
 
       const nameLoc = await this.tryResolve(recordDetail.name);
-      const name = await this.textOf(nameLoc);
+      const name = await this.valueOf(nameLoc);
       if (!name) {
         throw errors.notFound(
           `Opportunity "${opportunityId}"`,
@@ -61,14 +61,14 @@ export class OpportunitiesPage extends BasePage {
 
       const [companyName, pipeline, stage, status, owner, value, closeDate, primaryContact] =
         await Promise.all([
-          this.field("Company"),
-          this.field("Pipeline"),
-          this.field("Stage"),
-          this.field("Status"),
-          this.field("Owner"),
-          this.field("Value"),
-          this.field("Close Date"),
-          this.field("Primary Contact"),
+          this.field("Add Company"),
+          this.field("Add Pipeline"),
+          this.field("Add Stage"),
+          this.field("Add Status"),
+          this.field("Add Owner"),
+          this.field("Add Value"),
+          this.field("Add Close Date"),
+          this.field("Add Primary Contact"),
         ]);
 
       const recordUrl = this.raw.url();
@@ -139,8 +139,8 @@ export class OpportunitiesPage extends BasePage {
   }
 
   private async field(label: string): Promise<string | null> {
-    const loc = await this.tryResolve(recordDetail.fieldByLabel(label), { timeout: 1_500 });
-    return this.textOf(loc);
+    const loc = await this.tryResolve(recordDetail.fieldByPlaceholder(label), { timeout: 1_500 });
+    return this.valueOf(loc);
   }
 
   private async tags(): Promise<string[]> {

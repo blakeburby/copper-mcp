@@ -7,13 +7,13 @@
   </head>
   <body>
     <!--
-      Person record detail. Exercises the record-detail extraction path:
-        * <h1> heading  -> recordDetail.name primary (getByRole("heading"))
-        * label/value pairs -> recordDetail.fieldByLabel fallback
-          (getByLabel misses because these are not real <label> elements, which
-          matches Copper's actual markup; the xpath sibling fallback carries it)
-        * <li> tags -> recordDetail.tags primary (getByRole("listitem"))
-        * <article> -> recordDetail.activityItems primary (getByRole("article"))
+      Person "full profile" panel, mirroring live Copper (captured 2026-07-24):
+        * Container class EntityFullProfileFrame-fullProfile.
+        * Field values live in inline-editable <input> VALUES keyed by
+          placeholder ("Add Name", "Add Title", ...), NOT in text nodes — so
+          extraction must use inputValue(), which is what BasePage.valueOf does.
+        * <label> elements carry NO `for` attribute, so getByLabel cannot work.
+        * There is NO <h1>/<h2> for the record name; document.title mirrors it.
       Fictional data.
     -->
     <div class="WebAppNav">
@@ -27,51 +27,36 @@
     <div class="WebAppMain">
       <div class="WebAppHeader">
         <div class="WebAppHeader_search">
-          <input
-            type="text"
-            class="GlobalSearchTypeAhead_textField"
-            placeholder="Search by name, email, domain or phone number"
-          />
+          <input type="text" class="GlobalSearchTypeAhead_textField"
+                 placeholder="Search by name, email, domain or phone number" />
         </div>
       </div>
 
       <div class="WebAppContent">
-        <div class="RecordDetail">
-          <h1 class="RecordDetail_name">Jim Halpert</h1>
-          <p class="RecordDetail_subtitle">Sales Rep at Dunder Mifflin</p>
+        <div class="EntityFullProfileFrame-fullProfile EntityFullProfileFrame-contact">
+          <div class="RecordDetail">
+            <div class="RecordDetail_fields">
+              <label class="RecordDetail_label">Name</label>
+              <input class="TextField-inlineEditable ember-text-field" placeholder="Add Name" value="Jim Halpert" />
 
-          <div class="RecordDetail_fields">
-            <div class="RecordDetail_label">Title</div>
-            <div class="RecordDetail_value">Sales Rep</div>
+              <label class="RecordDetail_label">Company</label>
+              <input class="TextField-inlineEditable ember-text-field" placeholder="Add Company" value="Dunder Mifflin" />
 
-            <div class="RecordDetail_label">Company</div>
-            <div class="RecordDetail_value">Dunder Mifflin</div>
+              <label class="RecordDetail_label">Title</label>
+              <input class="TextField-inlineEditable ember-text-field" placeholder="Add Title" value="Sales Representative" />
 
-            <div class="RecordDetail_label">Email</div>
-            <div class="RecordDetail_value">jim@dundermifflin.com</div>
+              <label class="RecordDetail_label">Owner</label>
+              <input class="TextField-inlineEditable ember-text-field" placeholder="Add Owner" value="Blake Burby" />
 
-            <div class="RecordDetail_label">Phone</div>
-            <div class="RecordDetail_value">555-0101</div>
+              <label class="RecordDetail_label">Work Email</label>
+              <input class="TextField-inlineEditable ember-text-field" placeholder="Add Email" value="jim.halpert@dundermifflin.example" />
 
-            <div class="RecordDetail_label">Owner</div>
-            <div class="RecordDetail_value">Michael Scott</div>
-          </div>
+              <label class="RecordDetail_label">Work Phone</label>
+              <input class="TextField-inlineEditable ember-text-field" placeholder="Add Phone" value="555-0101" />
+            </div>
 
-          <ul class="RecordDetail_tags">
-            <li>Key Contact</li>
-            <li>Renewal 2026</li>
-          </ul>
-
-          <div class="ActivityFeed">
-            <div class="ActivityFeed_title">Recent Activity</div>
-            <article class="ActivityFeed_item">
-              Discussed the Q3 paper renewal; wants a revised quote by Friday.
-              <div class="ActivityFeed_meta">Note · Michael Scott · 2026-07-18</div>
-            </article>
-            <article class="ActivityFeed_item">
-              Left voicemail about the warehouse delivery schedule.
-              <div class="ActivityFeed_meta">Phone Call · Blake Burby · 2026-07-11</div>
-            </article>
+            <div class="EntityField_value">jim.halpert@dundermifflin.example</div>
+            <div class="EntityField_value">555-0101</div>
           </div>
         </div>
       </div>

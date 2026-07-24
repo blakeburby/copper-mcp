@@ -8,7 +8,12 @@
  */
 import type { Page } from "playwright";
 import { BasePage } from "./basePage.js";
-import { taskComposer, recordDetail, routes } from "../selectors/copperSelectors.js";
+import {
+  taskComposer,
+  createModal,
+  recordDetail,
+  routes,
+} from "../selectors/copperSelectors.js";
 import type { TaskSummary, ParentType } from "../types/records.js";
 import { CopperToolError, errors } from "../types/errors.js";
 import { captureDiagnostics } from "../browser/diagnostics.js";
@@ -27,7 +32,7 @@ export class TasksPage extends BasePage {
 
     // Open the parent record (safe to retry).
     await this.read("create_task:navigate", async () => {
-      await this.gotoAppRoute(routes.recordView[parentType](encodeURIComponent(parentId)));
+      await this.gotoAppRoute(routes.recordView(parentType, encodeURIComponent(parentId)));
       await this.waitForSettled();
       const heading = await this.tryResolve(recordDetail.name);
       if (!heading) {
@@ -48,13 +53,24 @@ export class TasksPage extends BasePage {
       );
     }
 
-    // Open composer + fill.
-    const openBtn = await this.resolve(taskComposer.openButton);
-    await openBtn.first().click();
+    // Open the composer via the left-nav "Create New" → "Task" menu. VERIFIED
+    // 2026-07-24: there is no inline "add task" button on the record panel; the
+    // Create New menu is the entry point, and the composer is a modal.
+    const createNew = await this.resolve(createModal.createNewButton);
+    await createNew.first().click();
+    const taskMenuItem = await this.resolve(createModal.createMenuItem("Task"));
+    await taskMenuItem.first().click();
 
     const titleInput = await this.resolve(taskComposer.titleInput);
     await titleInput.first().click();
     await titleInput.first().fill(title);
+
+    // Attach the task to the parent record via the "Related To" typeahead.
+    const relatedTo = await this.tryResolve(taskComposer.relatedToInput, { timeout: 2_000 });
+    if (relatedTo) {
+      await relatedTo.first().click();
+      await relatedTo.first().fill(parentId);
+    }
 
     if (dueDate) {
       const dueInput = await this.tryResolve(taskComposer.dueDateInput, { timeout: 2_000 });

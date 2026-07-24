@@ -213,24 +213,41 @@ a **primary** and a **fallback**, and each tagged:
 - `// UNVERIFIED` — a best-effort guess **not yet confirmed**. Tools relying on
   these may fail with `SELECTOR_FAILURE` until validated.
 
-> ⚠️ **Status at time of writing** (validated live against a real Copper account
-> on 2026-07-24, which happened to be **empty**, so no records were available):
+> **Status: validated live against a real Copper account on 2026-07-24**, with
+> records created specifically to exercise the list and record-detail paths.
+>
+> Three findings shape the whole selector layer — Copper is an **Ember** app:
+>
+> 1. **`getByLabel` is unusable.** Copper's `<label>` elements carry no `for`
+>    attribute and no aria association. Placeholders are the reliable handle.
+> 2. **Element ids are generated** (`ember258`) and change every render.
+> 3. **Record-detail values live in inline-editable `<input>` values, not text.**
+>    Reading them needs `inputValue()` — `innerText()` silently returns empty.
 >
 > **VERIFIED:**
 > - Login screen (`/users/sign_in`, email-first flow).
-> - Authenticated app-shell detection (Copper is an account-scoped SPA at
->   `/companies/{accountId}/app#/...`; the global search box is the DOM signal —
->   there is **no** `role="navigation"` element).
-> - Account-scoped **hash routing** for people/companies/opportunities/tasks/feed
->   (read from live nav hrefs).
-> - Global search input (placeholder "Search by name, email, domain or phone
->   number") and its quick-search empty state.
+> - App-shell detection — account-scoped SPA at `/companies/{accountId}/app#/…`;
+>   there is **no** `role="navigation"` element, so the global search box is the
+>   signal.
+> - Hash routing for people/companies/opportunities/tasks/feed.
+> - Global search input and the quick-search empty state.
+> - **List rows**: a populated list *is* an HTML `<table>` —
+>   `tbody.ListViewTableBody > tr.et-tr`. Record links are `a.fullProfileLink`;
+>   the clean name is in `span.AvatarPill_text` (the link text also contains the
+>   avatar initial).
+> - **Record view route**: `?fullProfile=people-<id>` on the list route
+>   (`#/contact/<id>` redirects to it). There is no standalone record page.
+> - **Record fields** by placeholder: `Add Name`, `Add Company`, `Add Title`,
+>   `Add Owner`, `Add Email`, `Add Phone`.
+> - **Person & task composers** (placeholders + the
+>   `ModalFormFrameworkCreateEntity_saveButton`), the `Create New` menu, and the
+>   typeahead option list (`.Typeahead_options li.js-optionItem`).
 >
-> **UNVERIFIED (need a populated account):** list result rows and record links
-> (the list is a custom div-based list, **not** an HTML table), record-detail
-> fields, activity/task composers, pipeline stages, and the per-record view hash
-> route. Tools relying on these may return `SELECTOR_FAILURE` until validated with
-> the checklist below.
+> **STILL UNVERIFIED** (the capture account had none of these): record **tags**,
+> the **activity feed**, the **activity composer** (so `log_activity` is
+> unverified end-to-end), **pipeline stages**, and the task **due-date** input
+> (its placeholder is today's date, so it can't be matched literally). Tools
+> relying on these may return `SELECTOR_FAILURE`; see the checklist below.
 
 ### Debugging selector failures
 

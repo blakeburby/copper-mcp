@@ -196,6 +196,25 @@ export class BasePage {
     }
   }
 
+  /**
+   * Safe value read for Copper's inline-editable fields.
+   *
+   * Record-detail values are held in <input>/<textarea> VALUES, not text nodes
+   * (verified 2026-07-24), so innerText returns "" for them — always use this
+   * for record fields. Falls back to innerText for the read-only variants.
+   */
+  async valueOf(locator: Locator | null): Promise<string | null> {
+    if (!locator) return null;
+    try {
+      const raw = (await locator.first().inputValue({ timeout: 2_000 })).trim();
+      if (raw.length) return raw;
+    } catch {
+      // Not an input (Copper renders some fields read-only) — try text instead.
+      return this.textOf(locator);
+    }
+    return null;
+  }
+
   /** Safe attribute read; returns null if missing. */
   async attrOf(locator: Locator | null, name: string): Promise<string | null> {
     if (!locator) return null;
@@ -280,18 +299,37 @@ export class BasePage {
       return [];
     }
 
-    const count = Math.min(await rows.count(), limit);
+    // Scan every row but stop once `limit` RECORDS have been collected. The
+    // header <tr> also matches getByRole("row") and carries no record link, so
+    // capping the scan at `limit` would silently under-return.
+    const total = await rows.count();
     const out: Array<{ name: string | null; href: string | null }> = [];
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < total && out.length < limit; i++) {
       const row = rows.nth(i);
       const link = list.rowLink.primary(row).first();
       const linkFb = list.rowLink.fallback(row).first();
       const active = (await link.count().catch(() => 0)) ? link : linkFb;
-      const name = await this.textOf(active).catch(() => null);
       const href = await this.attrOf(active, "href").catch(() => null);
+
+      // The link's own innerText also contains the avatar initial
+      // ("J\nJim Halpert"), so prefer the dedicated name span and fall back to
+      // the link text with the initial stripped.
+      let name = await this.textOf(list.rowName.primary(row)).catch(() => null);
+      if (!name) name = this.stripAvatarInitial(await this.textOf(active).catch(() => null));
+
+      // A header row carries no record link — skip it rather than emit a blank.
+      if (!href && !name) continue;
       out.push({ name, href: this.absolutize(href) });
     }
     return out;
+  }
+
+  /** Drop a leading single-letter avatar initial line, e.g. "J\nJim Halpert". */
+  protected stripAvatarInitial(text: string | null): string | null {
+    if (!text) return null;
+    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length > 1 && lines[0].length === 1) lines.shift();
+    return lines.join(" ").trim() || null;
   }
 
   /** Turn a relative href into an absolute Copper URL. */
@@ -301,10 +339,12 @@ export class BasePage {
     return `${this.cfg.baseUrl}${href.startsWith("/") ? "" : "/"}${href}`;
   }
 
-  /** Extract a stable record id from a Copper record URL, if present. */
+  /**
+   * Extract a stable record id from a Copper record URL/href. Delegates to the
+   * centralized matcher, which understands Copper's `?fullProfile=people-<id>`
+   * and `#/contact/<id>` forms.
+   */
   protected idFromUrl(url: string | null): string | null {
-    if (!url) return null;
-    const m = url.match(/\/(\d+)(?:[/?#]|$)/);
-    return m ? m[1] : null;
+    return routes.idFromHref(url);
   }
 }

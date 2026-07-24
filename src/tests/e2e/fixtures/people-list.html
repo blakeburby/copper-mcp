@@ -7,13 +7,17 @@
   </head>
   <body>
     <!--
-      Mirrors the real Copper People list (live capture 2026-07-24):
-        * NO <table> and NO role="row"/role="grid" — Copper renders a custom
-          div-based list, so `getByRole("row")` MISSES here by design and the
-          fallback selector must carry the load. That is the point of this
-          fixture: it fails the same way production does.
-        * Hash routing (#/browse/list/people/default, #/view/entity/person/<id>).
-        * No role="navigation" element anywhere.
+      Mirrors the REAL Copper People list, captured live 2026-07-24:
+        * It IS an HTML <table>: tbody.ListViewTableBody > tr.et-tr.ember-view.
+          (An earlier version of this fixture modelled a div-based list. That was
+          wrong — it was based on the EMPTY-account onboarding screen, which has
+          no table at all.)
+        * Record links are <a class="fullProfileLink"> whose href carries
+          ?fullProfile=people-<id>.
+        * The link text includes the avatar initial, so the clean name lives in
+          span.AvatarPill_text.
+        * No role="row" attribute — but native <tr> has the implicit ARIA role,
+          so getByRole("row") matches.
       Contacts below are fictional test data.
     -->
     <div class="WebAppNav">
@@ -29,84 +33,59 @@
       <div class="WebAppHeader">
         <h1 class="WebAppHeader_title">People</h1>
         <div class="WebAppHeader_search">
-          <input
-            type="text"
-            class="GlobalSearchTypeAhead_textField"
-            placeholder="Search by name, email, domain or phone number"
-          />
+          <input type="text" class="GlobalSearchTypeAhead_textField"
+                 placeholder="Search by name, email, domain or phone number" />
         </div>
       </div>
 
       <div class="WebAppContent">
-        <div class="ListView">
-          <div class="ListView_header">
-            <div class="ListView_cell ListView_cell--name">Name</div>
-            <div class="ListView_cell">Title</div>
-            <div class="ListView_cell">Company</div>
-            <div class="ListView_cell">Email</div>
-            <div class="ListView_cell">Owner</div>
-          </div>
-
-          <div class="ListView_row">
-            <div class="ListView_cell ListView_cell--name">
-              <a href="#/view/entity/person/1001">Jim Halpert</a>
-            </div>
-            <div class="ListView_cell">Sales Rep</div>
-            <div class="ListView_cell">Dunder Mifflin</div>
-            <div class="ListView_cell">jim@dundermifflin.com</div>
-            <div class="ListView_cell">Michael Scott</div>
-          </div>
-
-          <div class="ListView_row">
-            <div class="ListView_cell ListView_cell--name">
-              <a href="#/view/entity/person/1002">Pam Beesly</a>
-            </div>
-            <div class="ListView_cell">Office Administrator</div>
-            <div class="ListView_cell">Dunder Mifflin</div>
-            <div class="ListView_cell">pam@dundermifflin.com</div>
-            <div class="ListView_cell">Michael Scott</div>
-          </div>
-
-          <div class="ListView_row">
-            <div class="ListView_cell ListView_cell--name">
-              <a href="#/view/entity/person/1003">Dwight Schrute</a>
-            </div>
-            <div class="ListView_cell">Assistant Regional Manager</div>
-            <div class="ListView_cell">Dunder Mifflin</div>
-            <div class="ListView_cell">dwight@dundermifflin.com</div>
-            <div class="ListView_cell">Michael Scott</div>
-          </div>
-
-          <div class="ListView_row">
-            <div class="ListView_cell ListView_cell--name">
-              <a href="#/view/entity/person/1004">Bob Vance</a>
-            </div>
-            <div class="ListView_cell">Owner</div>
-            <div class="ListView_cell">Vance Refrigeration</div>
-            <div class="ListView_cell">bob@vancerefrigeration.com</div>
-            <div class="ListView_cell">Blake Burby</div>
-          </div>
-
-          <div class="ListView_row">
-            <div class="ListView_cell ListView_cell--name">
-              <a href="#/view/entity/person/1005">Karen Filippelli</a>
-            </div>
-            <div class="ListView_cell">Regional Sales Lead</div>
-            <div class="ListView_cell">Utica Paper Group</div>
-            <div class="ListView_cell">karen@uticapaper.com</div>
-            <div class="ListView_cell">Blake Burby</div>
-          </div>
-
-          <div class="ListView_row">
-            <div class="ListView_cell ListView_cell--name">
-              <a href="#/view/entity/person/1006">Stanley Hudson</a>
-            </div>
-            <div class="ListView_cell">Account Executive</div>
-            <div class="ListView_cell">Dunder Mifflin</div>
-            <div class="ListView_cell">stanley@dundermifflin.com</div>
-            <div class="ListView_cell">Michael Scott</div>
-          </div>
-        </div>
+        <table class="ListViewTable">
+          <thead>
+            <tr class="et-tr ember-view">
+              <th>Person</th><th>Title</th><th>Company</th><th>Email</th>
+            </tr>
+          </thead>
+          <tbody class="ember-view ListViewTableBody">
+            <tr class="et-tr ember-view">
+              <td class="is-fixed-left ember-view">
+                <div class="browse_field CardinalField"><div class="CardinalField_read">
+                  <a class="ember-view fullProfileLink" href="#/browse/list/people/default?fullProfile=people-184433443">
+                    <div class="AvatarPill PersonField_pill"><span class="AvatarPill_text">Jim Halpert</span></div>
+                  </a>
+                </div></div>
+              </td>
+              <td>Sales Representative</td>
+              <td><a class="ember-view fullProfileLink" href="#/browse/list/people/default?fullProfile=companies-77183427">
+                <div class="AvatarPill"><span class="AvatarPill_text">Dunder Mifflin</span></div></a></td>
+              <td>jim.halpert@dundermifflin.example</td>
+            </tr>
+            <tr class="et-tr ember-view">
+              <td class="is-fixed-left ember-view">
+                <div class="browse_field CardinalField"><div class="CardinalField_read">
+                  <a class="ember-view fullProfileLink" href="#/browse/list/people/default?fullProfile=people-184433452">
+                    <div class="AvatarPill PersonField_pill"><span class="AvatarPill_text">Pam Beesly</span></div>
+                  </a>
+                </div></div>
+              </td>
+              <td>Office Administrator</td>
+              <td></td>
+              <td>pam.beesly@dundermifflin.example</td>
+            </tr>
+            <tr class="et-tr ember-view">
+              <td class="is-fixed-left ember-view">
+                <div class="browse_field CardinalField"><div class="CardinalField_read">
+                  <a class="ember-view fullProfileLink" href="#/browse/list/people/default?fullProfile=people-184433461">
+                    <div class="AvatarPill PersonField_pill"><span class="AvatarPill_text">Dwight Schrute</span></div>
+                  </a>
+                </div></div>
+              </td>
+              <td>Assistant Regional Manager</td>
+              <td><a class="ember-view fullProfileLink" href="#/browse/list/people/default?fullProfile=companies-77183427">
+                <div class="AvatarPill"><span class="AvatarPill_text">Dunder Mifflin</span></div></a></td>
+              <td>dwight.schrute@dundermifflin.example</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </body>

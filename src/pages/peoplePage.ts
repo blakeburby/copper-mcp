@@ -1,14 +1,13 @@
 /**
  * People (contacts) page object.
  *
- * NOTE ON FIDELITY: the field-level selectors are UNVERIFIED against the live
- * Copper UI (see copperSelectors.ts). Search reliably yields a record name + URL
- * (and hence id); richer fields are best-effort and return null when they can't
- * be extracted confidently. Validate with the README manual checklist.
+ * FIDELITY: search, the record-view route, and the name/title/company/email/
+ * phone/owner field placeholders were VERIFIED against the live Copper UI on
+ * 2026-07-24. Tags and the activity feed remain UNVERIFIED (the account used for
+ * capture had neither), so those return [] rather than guessing.
  */
 import { BasePage } from "./basePage.js";
 import { routes, recordDetail } from "../selectors/copperSelectors.js";
-// Record-view routes (routes.recordView.*) are UNVERIFIED — see copperSelectors.ts.
 import type { PersonSummary, PersonDetail, ActivitySummary } from "../types/records.js";
 import { errors } from "../types/errors.js";
 
@@ -26,21 +25,30 @@ export class PeoplePage extends BasePage {
   /** Open a single person record and extract detail fields. */
   async get(personId: string): Promise<PersonDetail> {
     return this.read("get_person", async () => {
-      await this.gotoAppRoute(routes.recordView.person(encodeURIComponent(personId)));
+      await this.gotoAppRoute(routes.recordView("person", encodeURIComponent(personId)));
       await this.waitForSettled();
 
+      // The record name lives in the "Add Name" input value, not a heading.
+      // document.title mirrors it, so use that as a last resort.
       const nameLoc = await this.tryResolve(recordDetail.name);
-      const name = await this.textOf(nameLoc);
+      let name = await this.valueOf(nameLoc);
       if (!name) {
-        throw errors.notFound(`Person "${personId}"`, "No record heading was found at the record URL.");
+        const title = await this.raw.title().catch(() => "");
+        if (title && !/^copper$/i.test(title.trim())) name = title.trim();
+      }
+      if (!name) {
+        throw errors.notFound(
+          `Person "${personId}"`,
+          "The record panel did not render a name field at the record URL.",
+        );
       }
 
       const [title, companyName, email, phone, owner] = await Promise.all([
-        this.field("Title"),
-        this.field("Company"),
-        this.field("Email"),
-        this.field("Phone"),
-        this.field("Owner"),
+        this.field("Add Title"),
+        this.field("Add Company"),
+        this.field("Add Email"),
+        this.field("Add Phone"),
+        this.field("Add Owner"),
       ]);
 
       const tags = await this.tags();
@@ -81,9 +89,15 @@ export class PeoplePage extends BasePage {
     };
   }
 
-  private async field(label: string): Promise<string | null> {
-    const loc = await this.tryResolve(recordDetail.fieldByLabel(label), { timeout: 1_500 });
-    return this.textOf(loc);
+  /**
+   * Read a record field by its Copper placeholder (e.g. "Add Title"). Values are
+   * input values, not text — see BasePage.valueOf().
+   */
+  private async field(placeholder: string): Promise<string | null> {
+    const loc = await this.tryResolve(recordDetail.fieldByPlaceholder(placeholder), {
+      timeout: 1_500,
+    });
+    return this.valueOf(loc);
   }
 
   private async tags(): Promise<string[]> {

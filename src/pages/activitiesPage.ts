@@ -31,7 +31,7 @@ export class ActivitiesPage extends BasePage {
 
     // Navigate to the parent record. (Reads/navigation are safe to retry.)
     await this.read("log_activity:navigate", async () => {
-      await this.gotoAppRoute(routes.recordView[parentType](encodeURIComponent(parentId)));
+      await this.gotoAppRoute(routes.recordView(parentType, encodeURIComponent(parentId)));
       await this.waitForSettled();
       const heading = await this.tryResolve(recordDetail.name);
       if (!heading) {

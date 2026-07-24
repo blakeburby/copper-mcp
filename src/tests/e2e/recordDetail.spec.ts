@@ -4,47 +4,45 @@ import { recordDetail } from "../../selectors/copperSelectors.js";
 import { fixtureUrl } from "./helpers.js";
 
 /**
- * Record-detail extraction against the person fixture. Exercises resolve()'s
- * primary→fallback behavior (getByLabel misses; the label→sibling fallback hits)
- * and textOf().
+ * Record-detail extraction against a fixture that mirrors Copper's real
+ * "full profile" panel: values live in inline-editable <input> VALUES, so this
+ * exercises BasePage.valueOf() rather than text extraction.
  */
 test.describe("record detail extraction", () => {
-  test("reads the record name heading", async ({ page }) => {
+  test("reads the record name from the Add Name input value", async ({ page }) => {
     await page.goto(fixtureUrl("person.html"));
     const bp = new BasePage(page);
-    const name = await bp.textOf(await bp.resolve(recordDetail.name));
-    expect(name).toBe("Jim Halpert");
+    const loc = await bp.resolve(recordDetail.name, { timeout: 1_000 });
+    expect(await bp.valueOf(loc)).toBe("Jim Halpert");
   });
 
-  test("reads a labeled field via the fallback selector", async ({ page }) => {
+  test("textOf returns nothing for input-backed fields (why valueOf exists)", async ({ page }) => {
     await page.goto(fixtureUrl("person.html"));
     const bp = new BasePage(page);
-    // Small timeout so the missing getByLabel primary fails fast to the fallback.
-    const loc = await bp.resolve(recordDetail.fieldByLabel("Title"), { timeout: 500 });
-    expect(await bp.textOf(loc)).toBe("Sales Rep");
-
-    const company = await bp.resolve(recordDetail.fieldByLabel("Company"), { timeout: 500 });
-    expect(await bp.textOf(company)).toBe("Dunder Mifflin");
+    const loc = await bp.resolve(recordDetail.fieldByPlaceholder("Add Title"), { timeout: 1_000 });
+    // Regression guard: reading these with innerText silently yields empty,
+    // which is exactly the bug live capture uncovered.
+    expect(await bp.textOf(loc)).toBeNull();
+    expect(await bp.valueOf(loc)).toBe("Sales Representative");
   });
 
-  test("reads tags and activity feed items", async ({ page }) => {
+  test("reads fields by their Copper placeholders", async ({ page }) => {
     await page.goto(fixtureUrl("person.html"));
     const bp = new BasePage(page);
+    const read = async (ph: string) =>
+      bp.valueOf(await bp.resolve(recordDetail.fieldByPlaceholder(ph), { timeout: 1_000 }));
 
-    const tags = await bp.resolve(recordDetail.tags, { timeout: 1_000 });
-    expect(await tags.count()).toBe(2);
-    expect(await bp.textOf(tags.first())).toBe("Key Contact");
-
-    const activities = await bp.resolve(recordDetail.activityItems, { timeout: 1_000 });
-    expect(await activities.count()).toBe(2);
-    expect(await bp.textOf(activities.first())).toContain("Q3 paper renewal");
+    expect(await read("Add Company")).toBe("Dunder Mifflin");
+    expect(await read("Add Owner")).toBe("Blake Burby");
+    expect(await read("Add Email")).toBe("jim.halpert@dundermifflin.example");
+    expect(await read("Add Phone")).toBe("555-0101");
   });
 
   test("throws SELECTOR_FAILURE with a description when nothing matches", async ({ page }) => {
     await page.goto(fixtureUrl("person.html"));
     const bp = new BasePage(page);
     await expect(
-      bp.resolve(recordDetail.fieldByLabel("NonexistentField"), { timeout: 300 }),
-    ).rejects.toThrow(/NonexistentField/);
+      bp.resolve(recordDetail.fieldByPlaceholder("Add Nonexistent"), { timeout: 300 }),
+    ).rejects.toThrow(/Add Nonexistent/);
   });
 });

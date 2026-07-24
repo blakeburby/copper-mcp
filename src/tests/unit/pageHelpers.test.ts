@@ -18,10 +18,13 @@ class TestPage extends BasePage {
 describe("BasePage URL helpers", () => {
   const page = new TestPage(stubPage);
 
-  it("idFromUrl extracts the numeric record id", () => {
-    expect(page.pubId("https://app.copper.com/people/1234567")).toBe("1234567");
-    expect(page.pubId("/companies/42?tab=activity")).toBe("42");
-    expect(page.pubId("https://app.copper.com/dashboard")).toBeNull();
+  it("idFromUrl handles Copper's real record URL forms", () => {
+    // VERIFIED live 2026-07-24: records are addressed via a fullProfile query
+    // param on the list route, or the short #/contact/<id> form.
+    expect(page.pubId("#/browse/list/people/default?fullProfile=people-184433443")).toBe("184433443");
+    expect(page.pubId("#/browse/list/companies/default?fullProfile=companies-77183427")).toBe("77183427");
+    expect(page.pubId("https://app.copper.com/companies/616931/app/#/contact/184433443")).toBe("184433443");
+    expect(page.pubId("https://app.copper.com/companies/616931/app#/feed")).toBe("616931");
     expect(page.pubId(null)).toBeNull();
   });
 
@@ -41,8 +44,10 @@ describe("selector entries expose primary + fallback + description", () => {
     sel.auth.appShell,
     sel.activityComposer.submitButton,
     sel.taskComposer.titleInput,
+    sel.personComposer.firstName,
+    sel.createModal.saveButton,
     sel.recordDetail.name,
-    sel.recordDetail.fieldByLabel("Email"),
+    sel.recordDetail.fieldByPlaceholder("Add Email"),
   ];
 
   it("every entry has a description and two distinct resolvers", () => {
@@ -55,8 +60,8 @@ describe("selector entries expose primary + fallback + description", () => {
     }
   });
 
-  it("fieldByLabel builds a labeled entry referencing the label", () => {
-    const entry = sel.recordDetail.fieldByLabel("Owner");
-    expect(entry.description).toContain("Owner");
+  it("fieldByPlaceholder builds an entry referencing the placeholder", () => {
+    const entry = sel.recordDetail.fieldByPlaceholder("Add Owner");
+    expect(entry.description).toContain("Add Owner");
   });
 });
