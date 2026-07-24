@@ -1,7 +1,7 @@
 {
   "name": "copper-mcp",
-  "version": "0.1.0",
-  "description": "Unofficial MCP server for Copper CRM — read-heavy, agent-friendly, one guarded write tool.",
+  "version": "0.2.0",
+  "description": "Unofficial, browser-automation MCP server for Copper CRM — drives the Copper web app with Playwright, no API key required. Read-heavy, with confirm-gated writes.",
   "type": "module",
   "license": "MIT",
   "bin": {
@@ -16,21 +16,35 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "install:browsers": "playwright install chromium"
   },
   "keywords": [
     "mcp",
     "model-context-protocol",
     "copper",
     "crm",
-    "claude"
+    "claude",
+    "playwright",
+    "browser-automation"
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "playwright": "^1.49.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@playwright/test": "^1.49.0",
     "@types/node": "^22.10.0",
-    "typescript": "^5.7.0"
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.19.0",
+    "vitest": "^2.1.8"
   }
 }

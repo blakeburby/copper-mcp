@@ -1,69 +1,72 @@
-import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { copperRequest, CopperApiError } from "../copperClient.js";
-import { errorResult, textResult } from "./result.js";
+import { z } from "zod";
+import { getBrowserManager } from "../browser/browserManager.js";
+import { requireAuthenticatedPage } from "../browser/sessionManager.js";
+import { TasksPage } from "../pages/tasksPage.js";
+import { parentTypeSchema, confirmSchema, dateStringSchema } from "../schemas/common.js";
+import { okResult } from "../utils/response.js";
+import type { WritePreview } from "../types/records.js";
+import { runTool } from "./_helpers.js";
 
-/** Convert an ISO date (or date-time) string to the Unix seconds Copper expects. */
-function toUnixSeconds(dateStr: string): number {
-  const trimmed = dateStr.trim();
-  // A bare calendar date (YYYY-MM-DD) is parsed as UTC midnight, which Copper then
-  // renders in the account's timezone — shifting it to the previous evening for any
-  // negative-offset (US) timezone. Anchor bare dates at noon UTC so the calendar day
-  // survives the conversion everywhere. Explicit date-times are honored as given.
-  const isBareDate = /^\d{4}-\d{2}-\d{2}$/.test(trimmed);
-  const ms = Date.parse(isBareDate ? `${trimmed}T12:00:00Z` : trimmed);
-  if (Number.isNaN(ms)) {
-    throw new CopperApiError(
-      0,
-      `Invalid due_date "${dateStr}". Use an ISO date like 2026-07-17.`,
-    );
-  }
-  return Math.floor(ms / 1000);
-}
-
+/**
+ * WRITE TOOL. Creates a task attached to a record via the web UI. Requires
+ * confirm=true, holds the mutation lock, checks for a same-title duplicate first,
+ * submits once, and verifies. Never blindly re-submits.
+ */
 export function registerCreateTask(server: McpServer): void {
   server.registerTool(
     "create_task",
     {
-      title: "Create Task",
+      title: "Create Task (write)",
       description:
-        "Create a follow-up task in Copper, optionally linked to a person, company, or " +
-        "opportunity. Use this to schedule a reminder (e.g. 'send pricing on Friday'). " +
-        "Returns the created task. This tool creates a task record but does not modify any " +
-        "existing CRM data.",
+        "Create a task in Copper attached to a person, company, opportunity, or lead. This WRITES " +
+        "to the CRM. With confirm=false (default) it returns a preview and does NOT submit. Set " +
+        "confirm=true to actually create it. Refuses to create a task whose title already appears " +
+        "on the record (duplicate guard), submits once, and verifies creation.",
       inputSchema: {
-        name: z.string().describe("The task title, e.g. 'Send pricing to Acme'."),
-        related_resource: z
-          .object({
-            id: z.number().int().describe("The id of the record to link this task to."),
-            type: z
-              .enum(["person", "company", "opportunity", "lead", "project"])
-              .describe("The kind of record being linked."),
-          })
-          .optional()
-          .describe("Optionally link the task to a CRM record."),
-        due_date: z
+        title: z.string().min(1).describe("The task title."),
+        dueDate: dateStringSchema.optional().describe("Optional due date (YYYY-MM-DD)."),
+        parentType: parentTypeSchema,
+        parentId: z
           .string()
-          .optional()
-          .describe("Due date in ISO format, e.g. '2026-07-17'."),
-        details: z
-          .string()
-          .optional()
-          .describe("Free-text notes / description for the task."),
+          .min(1)
+          .describe("Id of the record to attach the task to (as shown in the record URL)."),
+        description: z.string().optional().describe("Optional task description / details."),
+        confirm: confirmSchema,
       },
     },
-    async ({ name, related_resource, due_date, details }) => {
-      try {
-        const body: Record<string, unknown> = { name };
-        if (related_resource) body.related_resource = related_resource;
-        if (due_date) body.due_date = toUnixSeconds(due_date);
-        if (details) body.details = details;
+    async ({ title, dueDate, parentType, parentId, description, confirm }) =>
+      runTool("create_task", async (log) => {
+        if (!confirm) {
+          const preview: WritePreview = {
+            action: "create_task",
+            willSubmit: false,
+            summary: { title, dueDate, parentType, parentId, description },
+            note: "Preview only — nothing was written. Re-run with confirm=true to create this task.",
+          };
+          return okResult(
+            "Preview: this task was NOT created. Set confirm=true to submit.",
+            { preview },
+            { source: "copper-web-ui", confirmed: false },
+          );
+        }
 
-        const task = await copperRequest("POST", "/tasks", body);
-        return textResult(task);
-      } catch (err) {
-        return errorResult(err);
-      }
-    },
+        const manager = getBrowserManager();
+        return manager.withMutation(async () => {
+          const page = await requireAuthenticatedPage(log);
+          const task = await new TasksPage(page, log).createTask({
+            title,
+            dueDate,
+            parentType,
+            parentId,
+            description,
+          });
+          return okResult(
+            "Task created and verified.",
+            { task },
+            { source: "copper-web-ui", confirmed: true },
+          );
+        });
+      }),
   );
 }

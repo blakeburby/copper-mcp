@@ -1,7 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { copperRequest } from "../copperClient.js";
-import type { CopperPipeline } from "../copperTypes.js";
-import { errorResult, textResult } from "./result.js";
+import { requireAuthenticatedPage } from "../browser/sessionManager.js";
+import { OpportunitiesPage } from "../pages/opportunitiesPage.js";
+import { okResult } from "../utils/response.js";
+import { runTool } from "./_helpers.js";
 
 export function registerListPipelines(server: McpServer): void {
   server.registerTool(
@@ -9,29 +10,19 @@ export function registerListPipelines(server: McpServer): void {
     {
       title: "List Pipelines",
       description:
-        "List every sales pipeline in Copper along with its ordered stages. Call this first " +
-        "when you need to map a human stage or pipeline name (e.g. 'Closing this month') to " +
-        "the numeric IDs that search_opportunities and get_opportunity use. Returns each " +
-        "pipeline's id and name, plus each stage's id, name, and win_probability. Takes no arguments.",
+        "List the opportunity pipelines and their visible stages, read from the Copper pipelines " +
+        "settings screen. Useful before searching or filtering opportunities by pipeline/stage.",
       inputSchema: {},
     },
-    async () => {
-      try {
-        const pipelines = await copperRequest<CopperPipeline[]>("GET", "/pipelines");
-
-        const rows = pipelines.map((p) => ({
-          id: p.id,
-          name: p.name,
-          stages: (p.stages ?? []).map((s) => ({
-            id: s.id,
-            name: s.name,
-            win_probability: s.win_probability ?? null,
-          })),
-        }));
-        return textResult(rows);
-      } catch (err) {
-        return errorResult(err);
-      }
-    },
+    async () =>
+      runTool("list_pipelines", async (log) => {
+        const page = await requireAuthenticatedPage(log);
+        const pipelines = await new OpportunitiesPage(page, log).listPipelines();
+        return okResult(
+          pipelines.length ? `Found ${pipelines.length} pipelines.` : "No pipelines found.",
+          { pipelines },
+          { recordCount: pipelines.length },
+        );
+      }),
   );
 }
