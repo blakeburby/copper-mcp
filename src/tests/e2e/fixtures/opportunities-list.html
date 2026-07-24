@@ -1,16 +1,86 @@
 <!doctype html>
-<html>
-  <head><title>Copper — Opportunities</title></head>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Opportunities</title>
+    <link rel="stylesheet" href="./_copper.css" />
+  </head>
   <body>
-    <nav role="navigation"><a href="/opportunities">Opportunities</a></nav>
-    <main>
-      <h1>Opportunities</h1>
-      <table>
-        <tbody>
-          <tr><td><a href="/opportunities/3001">Paper renewal — Dunder Mifflin</a></td><td>Won</td></tr>
-          <tr><td><a href="/opportunities/3002">New account — Vance</a></td><td>Open</td></tr>
-        </tbody>
-      </table>
-    </main>
+    <!-- Div-based list mirroring real Copper (see people-list.html). Fictional data. -->
+    <div class="WebAppNav">
+      <div class="WebAppNav_brand">Blake Burby's Company</div>
+      <a href="#/feed">Feed</a>
+      <a href="#/browse/list/tasks/default">Tasks</a>
+      <div class="WebAppNav_section">Pipelines</div>
+      <a href="#/browse/board/opportunities/default" class="is-active">Sales pipeline</a>
+      <div class="WebAppNav_section">Contacts</div>
+      <a href="#/browse/list/people/default">People</a>
+      <a href="#/browse/list/companies/default">Companies</a>
+    </div>
+
+    <div class="WebAppMain">
+      <div class="WebAppHeader">
+        <h1 class="WebAppHeader_title">Opportunities</h1>
+        <div class="WebAppHeader_search">
+          <input
+            type="text"
+            class="GlobalSearchTypeAhead_textField"
+            placeholder="Search by name, email, domain or phone number"
+          />
+        </div>
+      </div>
+
+      <div class="WebAppContent">
+        <div class="ListView">
+          <div class="ListView_header">
+            <div class="ListView_cell ListView_cell--name">Name</div>
+            <div class="ListView_cell">Company</div>
+            <div class="ListView_cell">Stage</div>
+            <div class="ListView_cell">Value</div>
+            <div class="ListView_cell">Close Date</div>
+          </div>
+
+          <div class="ListView_row">
+            <div class="ListView_cell ListView_cell--name">
+              <a href="#/view/entity/opportunity/3001">Paper renewal — Dunder Mifflin</a>
+            </div>
+            <div class="ListView_cell">Dunder Mifflin</div>
+            <div class="ListView_cell">Won</div>
+            <div class="ListView_cell">$42,000</div>
+            <div class="ListView_cell">2026-08-15</div>
+          </div>
+
+          <div class="ListView_row">
+            <div class="ListView_cell ListView_cell--name">
+              <a href="#/view/entity/opportunity/3002">New account — Vance Refrigeration</a>
+            </div>
+            <div class="ListView_cell">Vance Refrigeration</div>
+            <div class="ListView_cell">Negotiation</div>
+            <div class="ListView_cell">$18,500</div>
+            <div class="ListView_cell">2026-09-01</div>
+          </div>
+
+          <div class="ListView_row">
+            <div class="ListView_cell ListView_cell--name">
+              <a href="#/view/entity/opportunity/3003">Bulk order — Utica Paper Group</a>
+            </div>
+            <div class="ListView_cell">Utica Paper Group</div>
+            <div class="ListView_cell">Qualified</div>
+            <div class="ListView_cell">$67,250</div>
+            <div class="ListView_cell">2026-10-30</div>
+          </div>
+
+          <div class="ListView_row">
+            <div class="ListView_cell ListView_cell--name">
+              <a href="#/view/entity/opportunity/3004">Warehouse refit — Lackawanna Supply Co.</a>
+            </div>
+            <div class="ListView_cell">Lackawanna Supply Co.</div>
+            <div class="ListView_cell">Prospecting</div>
+            <div class="ListView_cell">$9,800</div>
+            <div class="ListView_cell">2026-11-20</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </body>
 </html>

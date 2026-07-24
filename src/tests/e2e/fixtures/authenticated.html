@@ -1,19 +1,45 @@
 <!doctype html>
-<html>
-  <head><title>Copper — Feed</title></head>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Feed</title>
+    <link rel="stylesheet" href="./_copper.css" />
+  </head>
   <body>
-    <!-- Mirrors the real Copper app shell (2026-07-24): NO role=navigation; the
-         global search box + hash-route nav links are the authenticated signals. -->
-    <header>
-      <input type="text" placeholder="Search by name, email, domain or phone number" />
-    </header>
-    <aside>
-      <a href="#/feed">Feed</a>
+    <!--
+      Authenticated app shell. VERIFIED against live Copper (2026-07-24): there is
+      NO role="navigation"/<nav> element, so auth detection keys off the global
+      search box (primary) and the #/browse/list/... nav links (fallback).
+    -->
+    <div class="WebAppNav">
+      <div class="WebAppNav_brand">Blake Burby's Company</div>
+      <a href="#/feed" class="is-active">Feed</a>
+      <a href="#/browse/list/tasks/default">Tasks</a>
+      <div class="WebAppNav_section">Contacts</div>
       <a href="#/browse/list/people/default">People</a>
       <a href="#/browse/list/companies/default">Companies</a>
-    </aside>
-    <main>
-      <h1>Welcome to your Feed</h1>
-    </main>
+    </div>
+
+    <div class="WebAppMain">
+      <div class="WebAppHeader">
+        <h1 class="WebAppHeader_title">Feed</h1>
+        <div class="WebAppHeader_search">
+          <input
+            type="text"
+            class="GlobalSearchTypeAhead_textField"
+            placeholder="Search by name, email, domain or phone number"
+          />
+        </div>
+      </div>
+
+      <div class="WebAppContent">
+        <div class="RecordDetail">
+          <h2 class="RecordDetail_name">Welcome back, Blake 👋</h2>
+          <p class="RecordDetail_subtitle">
+            Your relationships and activities, all in one place.
+          </p>
+        </div>
+      </div>
+    </div>
   </body>
 </html>

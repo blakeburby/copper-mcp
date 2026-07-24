@@ -1,11 +1,46 @@
 <!doctype html>
-<html>
-  <head><title>Copper — People</title></head>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>People</title>
+    <link rel="stylesheet" href="./_copper.css" />
+  </head>
   <body>
-    <nav role="navigation"><a href="/people">People</a></nav>
-    <main>
-      <h1>People</h1>
-      <div data-testid="empty-state">No results found</div>
-    </main>
+    <!--
+      Empty-results state. The `GlobalSearchEmptyState` class name and the
+      "No Quick Search Results Found" copy are VERIFIED against the live Copper
+      quick-search typeahead (2026-07-24).
+    -->
+    <div class="WebAppNav">
+      <div class="WebAppNav_brand">Blake Burby's Company</div>
+      <a href="#/feed">Feed</a>
+      <div class="WebAppNav_section">Contacts</div>
+      <a href="#/browse/list/people/default" class="is-active">People</a>
+      <a href="#/browse/list/companies/default">Companies</a>
+    </div>
+
+    <div class="WebAppMain">
+      <div class="WebAppHeader">
+        <h1 class="WebAppHeader_title">People</h1>
+        <div class="WebAppHeader_search">
+          <input
+            type="text"
+            class="GlobalSearchTypeAhead_textField"
+            placeholder="Search by name, email, domain or phone number"
+          />
+        </div>
+      </div>
+
+      <div class="WebAppContent">
+        <div class="ListView">
+          <div class="GlobalSearchEmptyState">
+            <div class="GlobalSearchEmptyState_title">No Quick Search Results Found</div>
+            <p class="GlobalSearchEmptyState_text">
+              Press Enter to search across all records.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
   </body>
 </html>

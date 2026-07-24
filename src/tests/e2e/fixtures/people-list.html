@@ -1,17 +1,113 @@
 <!doctype html>
-<html>
-  <head><title>Copper — People</title></head>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>People</title>
+    <link rel="stylesheet" href="./_copper.css" />
+  </head>
   <body>
-    <nav role="navigation"><a href="/people">People</a></nav>
-    <main>
-      <h1>People</h1>
-      <table>
-        <tbody>
-          <tr><td><a href="/people/1001">Jim Halpert</a></td><td>Sales Rep</td></tr>
-          <tr><td><a href="/people/1002">Pam Beesly</a></td><td>Office Admin</td></tr>
-          <tr><td><a href="/people/1003">Dwight Schrute</a></td><td>Assistant RM</td></tr>
-        </tbody>
-      </table>
-    </main>
+    <!--
+      Mirrors the real Copper People list (live capture 2026-07-24):
+        * NO <table> and NO role="row"/role="grid" — Copper renders a custom
+          div-based list, so `getByRole("row")` MISSES here by design and the
+          fallback selector must carry the load. That is the point of this
+          fixture: it fails the same way production does.
+        * Hash routing (#/browse/list/people/default, #/view/entity/person/<id>).
+        * No role="navigation" element anywhere.
+      Contacts below are fictional test data.
+    -->
+    <div class="WebAppNav">
+      <div class="WebAppNav_brand">Blake Burby's Company</div>
+      <a href="#/feed">Feed</a>
+      <a href="#/browse/list/tasks/default">Tasks</a>
+      <div class="WebAppNav_section">Contacts</div>
+      <a href="#/browse/list/people/default" class="is-active">People</a>
+      <a href="#/browse/list/companies/default">Companies</a>
+    </div>
+
+    <div class="WebAppMain">
+      <div class="WebAppHeader">
+        <h1 class="WebAppHeader_title">People</h1>
+        <div class="WebAppHeader_search">
+          <input
+            type="text"
+            class="GlobalSearchTypeAhead_textField"
+            placeholder="Search by name, email, domain or phone number"
+          />
+        </div>
+      </div>
+
+      <div class="WebAppContent">
+        <div class="ListView">
+          <div class="ListView_header">
+            <div class="ListView_cell ListView_cell--name">Name</div>
+            <div class="ListView_cell">Title</div>
+            <div class="ListView_cell">Company</div>
+            <div class="ListView_cell">Email</div>
+            <div class="ListView_cell">Owner</div>
+          </div>
+
+          <div class="ListView_row">
+            <div class="ListView_cell ListView_cell--name">
+              <a href="#/view/entity/person/1001">Jim Halpert</a>
+            </div>
+            <div class="ListView_cell">Sales Rep</div>
+            <div class="ListView_cell">Dunder Mifflin</div>
+            <div class="ListView_cell">jim@dundermifflin.com</div>
+            <div class="ListView_cell">Michael Scott</div>
+          </div>
+
+          <div class="ListView_row">
+            <div class="ListView_cell ListView_cell--name">
+              <a href="#/view/entity/person/1002">Pam Beesly</a>
+            </div>
+            <div class="ListView_cell">Office Administrator</div>
+            <div class="ListView_cell">Dunder Mifflin</div>
+            <div class="ListView_cell">pam@dundermifflin.com</div>
+            <div class="ListView_cell">Michael Scott</div>
+          </div>
+
+          <div class="ListView_row">
+            <div class="ListView_cell ListView_cell--name">
+              <a href="#/view/entity/person/1003">Dwight Schrute</a>
+            </div>
+            <div class="ListView_cell">Assistant Regional Manager</div>
+            <div class="ListView_cell">Dunder Mifflin</div>
+            <div class="ListView_cell">dwight@dundermifflin.com</div>
+            <div class="ListView_cell">Michael Scott</div>
+          </div>
+
+          <div class="ListView_row">
+            <div class="ListView_cell ListView_cell--name">
+              <a href="#/view/entity/person/1004">Bob Vance</a>
+            </div>
+            <div class="ListView_cell">Owner</div>
+            <div class="ListView_cell">Vance Refrigeration</div>
+            <div class="ListView_cell">bob@vancerefrigeration.com</div>
+            <div class="ListView_cell">Blake Burby</div>
+          </div>
+
+          <div class="ListView_row">
+            <div class="ListView_cell ListView_cell--name">
+              <a href="#/view/entity/person/1005">Karen Filippelli</a>
+            </div>
+            <div class="ListView_cell">Regional Sales Lead</div>
+            <div class="ListView_cell">Utica Paper Group</div>
+            <div class="ListView_cell">karen@uticapaper.com</div>
+            <div class="ListView_cell">Blake Burby</div>
+          </div>
+
+          <div class="ListView_row">
+            <div class="ListView_cell ListView_cell--name">
+              <a href="#/view/entity/person/1006">Stanley Hudson</a>
+            </div>
+            <div class="ListView_cell">Account Executive</div>
+            <div class="ListView_cell">Dunder Mifflin</div>
+            <div class="ListView_cell">stanley@dundermifflin.com</div>
+            <div class="ListView_cell">Michael Scott</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </body>
 </html>

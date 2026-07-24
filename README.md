@@ -311,6 +311,28 @@ Then re-run `initialize_copper_session` and log in again.
 7. **Tests** — add a Vitest unit test and, if useful, a fixture-backed Playwright
    spec under `src/tests/`.
 
+## Test fixtures
+
+`src/tests/e2e/fixtures/` holds local HTML pages that stand in for Copper so the
+e2e specs run in CI with no live account. They are deliberately built to match
+Copper's **real DOM shape**, not a convenient one:
+
+- list views are **div-based** (no `<table>`, no `role="row"`) — so
+  `getByRole("row")` misses here exactly as it does in production, and the
+  fallback selector is what actually gets exercised;
+- there is **no** `role="navigation"` element;
+- links use account-scoped **hash routes** (`#/view/entity/person/1001`).
+
+The CSS class names (`ListView_row`, `RecordDetail_label`, …) follow Copper's
+observed `Component_element` convention but are **invented placeholders** — only
+`GlobalSearchEmptyState` and the search placeholder text are verified. The
+fixtures are styled to resemble Copper so you can open one in a browser while
+debugging a selector.
+
+> These fixtures test **our code against our assumptions**. Passing specs do
+> *not* prove a selector matches real Copper — only the manual checklist above
+> does that.
+
 ## Development
 
 ```bash

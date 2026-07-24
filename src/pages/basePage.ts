@@ -22,6 +22,12 @@ import {
   type SelectorEntry,
 } from "../selectors/copperSelectors.js";
 
+/**
+ * How long a PRIMARY selector gets to prove itself before we fall back. Kept
+ * short on purpose — see resolve().
+ */
+const PRIMARY_PROBE_MS = 2_000;
+
 export class BasePage {
   protected readonly cfg = loadConfig();
 
@@ -55,9 +61,17 @@ export class BasePage {
     const scope = opts.scope ?? this.page;
     const timeout = opts.timeout ?? this.selectorTimeout;
 
+    // The primary gets a SHORTER probe than the fallback. A role/label-based
+    // primary that is going to match a loaded page matches quickly; when it
+    // cannot match at all (e.g. getByRole("row") against Copper's div-based
+    // list, confirmed 2026-07-24) the full budget would otherwise be burned on
+    // every call before the fallback even runs. Slow-rendering pages are covered
+    // by waitForSettled() and read()'s retry-with-backoff, not by this wait.
+    const primaryTimeout = Math.max(1_000, Math.min(timeout, PRIMARY_PROBE_MS));
+
     const primary = entry.primary(scope);
     try {
-      await primary.first().waitFor({ state: "visible", timeout });
+      await primary.first().waitFor({ state: "visible", timeout: primaryTimeout });
       return primary;
     } catch {
       this.log.debug(`Primary selector missed: ${entry.description}; trying fallback.`);
@@ -71,7 +85,7 @@ export class BasePage {
     } catch {
       throw errors.selector(
         entry.description,
-        `Neither primary nor fallback selector for "${entry.description}" became visible within ${timeout}ms.` +
+        `Neither primary (${primaryTimeout}ms) nor fallback (${timeout}ms) selector for "${entry.description}" became visible.` +
           (entry.verified ? "" : " (This selector is UNVERIFIED against the live Copper UI.)"),
       );
     }
@@ -246,15 +260,23 @@ export class BasePage {
    * Returns [] if the empty-state indicator is showing.
    */
   async collectRowLinks(limit: number): Promise<Array<{ name: string | null; href: string | null }>> {
-    // Short-circuit on an explicit empty state.
-    const empty = await this.tryResolve(list.emptyState, { timeout: 1_500 });
-    if (empty) return [];
-
+    // Look for rows FIRST: their presence is the positive signal, and it is the
+    // common case. (Probing the empty state first would burn its full budget on
+    // every populated search.)
     let rows: Locator;
     try {
-      rows = await this.resolve(list.rows);
+      // The caller has already awaited waitForSettled(), so rows should be in the
+      // DOM; a tighter budget keeps the zero-results path from dragging.
+      rows = await this.resolve(list.rows, { timeout: 4_000 });
     } catch {
-      // No rows and no empty-state marker: treat as no results rather than error.
+      // No rows. Distinguish a genuinely empty result set from a broken selector
+      // so the logs say which one it was — both return [] to the caller.
+      const empty = await this.tryResolve(list.emptyState, { timeout: 1_500 });
+      this.log.debug(
+        empty
+          ? "No rows and an empty-state marker was present: zero results."
+          : "No rows and NO empty-state marker: the row selector may be stale.",
+      );
       return [];
     }
 

@@ -147,7 +147,17 @@ export const list = {
     (s) => asScope(s).getByRole("row"),
     (s) =>
       asScope(s).locator(
-        "[data-testid='list-row'], [class*='ListRow' i], [class*='TableRow' i], tbody tr, [role='listitem']",
+        [
+          "[data-testid='list-row']",
+          "[class*='ListRow' i]",
+          "[class*='TableRow' i]",
+          // Copper's markup follows a `Component_element` convention (confirmed
+          // via GlobalSearchEmptyState_title etc.), so a row is plausibly
+          // `SomethingList_row`. Broad on purpose: this is the fallback.
+          "[class*='_row' i]",
+          "tbody tr",
+          "[role='listitem']",
+        ].join(", "),
       ),
     false,
   ),

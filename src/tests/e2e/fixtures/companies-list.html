@@ -1,16 +1,79 @@
 <!doctype html>
-<html>
-  <head><title>Copper — Companies</title></head>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Companies</title>
+    <link rel="stylesheet" href="./_copper.css" />
+  </head>
   <body>
-    <nav role="navigation"><a href="/companies">Companies</a></nav>
-    <main>
-      <h1>Companies</h1>
-      <table>
-        <tbody>
-          <tr><td><a href="/companies/2001">Dunder Mifflin</a></td><td>Scranton</td></tr>
-          <tr><td><a href="/companies/2002">Vance Refrigeration</a></td><td>Scranton</td></tr>
-        </tbody>
-      </table>
-    </main>
+    <!-- Div-based list mirroring real Copper (see people-list.html). Fictional data. -->
+    <div class="WebAppNav">
+      <div class="WebAppNav_brand">Blake Burby's Company</div>
+      <a href="#/feed">Feed</a>
+      <a href="#/browse/list/tasks/default">Tasks</a>
+      <div class="WebAppNav_section">Contacts</div>
+      <a href="#/browse/list/people/default">People</a>
+      <a href="#/browse/list/companies/default" class="is-active">Companies</a>
+    </div>
+
+    <div class="WebAppMain">
+      <div class="WebAppHeader">
+        <h1 class="WebAppHeader_title">Companies</h1>
+        <div class="WebAppHeader_search">
+          <input
+            type="text"
+            class="GlobalSearchTypeAhead_textField"
+            placeholder="Search by name, email, domain or phone number"
+          />
+        </div>
+      </div>
+
+      <div class="WebAppContent">
+        <div class="ListView">
+          <div class="ListView_header">
+            <div class="ListView_cell ListView_cell--name">Name</div>
+            <div class="ListView_cell">Domain</div>
+            <div class="ListView_cell">Phone</div>
+            <div class="ListView_cell">Owner</div>
+          </div>
+
+          <div class="ListView_row">
+            <div class="ListView_cell ListView_cell--name">
+              <a href="#/view/entity/company/2001">Dunder Mifflin</a>
+            </div>
+            <div class="ListView_cell">dundermifflin.com</div>
+            <div class="ListView_cell">555-0100</div>
+            <div class="ListView_cell">Michael Scott</div>
+          </div>
+
+          <div class="ListView_row">
+            <div class="ListView_cell ListView_cell--name">
+              <a href="#/view/entity/company/2002">Vance Refrigeration</a>
+            </div>
+            <div class="ListView_cell">vancerefrigeration.com</div>
+            <div class="ListView_cell">555-0142</div>
+            <div class="ListView_cell">Blake Burby</div>
+          </div>
+
+          <div class="ListView_row">
+            <div class="ListView_cell ListView_cell--name">
+              <a href="#/view/entity/company/2003">Utica Paper Group</a>
+            </div>
+            <div class="ListView_cell">uticapaper.com</div>
+            <div class="ListView_cell">555-0177</div>
+            <div class="ListView_cell">Blake Burby</div>
+          </div>
+
+          <div class="ListView_row">
+            <div class="ListView_cell ListView_cell--name">
+              <a href="#/view/entity/company/2004">Lackawanna Supply Co.</a>
+            </div>
+            <div class="ListView_cell">lackawannasupply.com</div>
+            <div class="ListView_cell">555-0198</div>
+            <div class="ListView_cell">Michael Scott</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </body>
 </html>

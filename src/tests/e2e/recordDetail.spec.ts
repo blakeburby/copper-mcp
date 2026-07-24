@@ -27,6 +27,19 @@ test.describe("record detail extraction", () => {
     expect(await bp.textOf(company)).toBe("Dunder Mifflin");
   });
 
+  test("reads tags and activity feed items", async ({ page }) => {
+    await page.goto(fixtureUrl("person.html"));
+    const bp = new BasePage(page);
+
+    const tags = await bp.resolve(recordDetail.tags, { timeout: 1_000 });
+    expect(await tags.count()).toBe(2);
+    expect(await bp.textOf(tags.first())).toBe("Key Contact");
+
+    const activities = await bp.resolve(recordDetail.activityItems, { timeout: 1_000 });
+    expect(await activities.count()).toBe(2);
+    expect(await bp.textOf(activities.first())).toContain("Q3 paper renewal");
+  });
+
   test("throws SELECTOR_FAILURE with a description when nothing matches", async ({ page }) => {
     await page.goto(fixtureUrl("person.html"));
     const bp = new BasePage(page);
