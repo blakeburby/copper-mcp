@@ -150,10 +150,12 @@ function fromBodyText(body: string | null | undefined): DirectionResult | null {
   if (!text) return null;
 
   const inboundRules: Array<[RegExp, number, string]> = [
-    [/\b(they|he|she|client|customer|prospect)\s+(called|emailed|messaged|reached out|got in touch)\b/i, 0.75, "buyer named as the actor"],
+    [/\b(they|he|she|client|customer|prospect)\s+(called|emailed|messaged|reached out|got in touch|replied|responded|wrote|confirmed|sent)\b/i, 0.75, "buyer named as the actor"],
     [/\b(called|emailed|messaged|reached out to|got in touch with)\s+(me|us)\b/i, 0.75, "contacted me/us"],
     [/\b(inbound|incoming)\b/i, 0.7, "explicitly inbound"],
-    [/\breplied\s+(to|saying|that)\b|\breply\s+received\b|\bgot a reply\b/i, 0.7, "reply received"],
+    // Deliberately does NOT require a follow-word: "They replied asking for the
+    // redlines" is a real note that the narrower form missed in live testing.
+    [/\breplied\b|\breply\s+received\b|\bgot a reply\b/i, 0.7, "reply received"],
     [/\b(they|he|she)\s+(asked|requested|wants|booked|scheduled)\b/i, 0.65, "buyer asked/requested"],
     [/\bresponded\b/i, 0.6, "responded"],
   ];

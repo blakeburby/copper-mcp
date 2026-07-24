@@ -62,6 +62,23 @@ describe("resolveDirection — text inference", () => {
     }
   });
 
+  it("handles real notes captured from live Copper", () => {
+    // These exact strings were logged into Copper and run through the pipeline.
+    // "They replied asking..." resolved to unknown before the reply rule was
+    // widened — it required a follow-word like "replied to/saying/that".
+    const cases: Array<[string, string]> = [
+      ["Jim called me this morning asking for revised pricing on the renewal.", "inbound"],
+      ["They replied asking for the contract redlines before Friday.", "inbound"],
+      ["They requested a meeting to walk through the renewal terms.", "inbound"],
+      ["I emailed him the updated pricing deck and follow-up questions.", "outbound"],
+      // States no direction at all — must stay unknown rather than be guessed.
+      ["Connected call re Q3 paper renewal. Jim asked for revised pricing by Friday.", "unknown"],
+    ];
+    for (const [body, expected] of cases) {
+      expect(resolveDirection({ type: "phone_call", body }).direction, body).toBe(expected);
+    }
+  });
+
   it("infers outbound for rep-initiated phrasing", () => {
     for (const body of [
       "Left a voicemail about the warehouse schedule",
