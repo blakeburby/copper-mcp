@@ -256,12 +256,74 @@ export const recordDetail = {
     (s) => asPage(s).getByRole("listitem"),
     false,
   ),
-  /** Activity feed entries. UNVERIFIED — no activities existed on the demo record. */
+  /**
+   * Activity feed entries. VERIFIED 2026-07-24 — see `activityFeed` below for the
+   * full per-item anatomy. Kept here for backwards compatibility.
+   */
   activityItems: entry(
     "activity feed items",
-    (s) => asPage(s).locator("[class*='ActivityItem' i], [class*='activity' i][class*='item' i]"),
-    (s) => asPage(s).getByRole("article"),
-    false,
+    (s) => asPage(s).locator(".ActivityItem"),
+    (s) => asPage(s).locator("[class*='ActivityItem' i]"),
+    true,
+  ),
+};
+
+/**
+ * Activity feed anatomy. VERIFIED 2026-07-24 by logging a real Phone Call
+ * activity on a live record and reading the rendered DOM:
+ *
+ *   .ActivityList > .ActivityLogList > .ActivityItem[.ActivityItem-<kind>]
+ *     ├─ h4.ActivityItem_label                  "Today"  (day grouping header)
+ *     ├─ .ActivityItem_header > span.ActivityItem_headerContent
+ *     │     └─ <a>You</a> + " logged a Phone Call"   ← ACTOR + TYPE
+ *     └─ .ActivityItem_date > <time datetime="2026-07-24T21:30:39.000Z"
+ *                                   title="Jul 24, 2026 at 2:30 PM">2:30 PM</time>
+ *
+ * The `datetime` attribute is a full ISO-8601 UTC instant — parse that, never the
+ * human-readable "2:30 PM" text, which is timezone- and locale-dependent.
+ */
+export const activityFeed = {
+  /** The scrollable feed container. */
+  list: entry(
+    "activity feed list",
+    (s) => asPage(s).locator(".ActivityLogList"),
+    (s) => asPage(s).locator(".ActivityList, [class*='ActivityLogList' i]"),
+    true,
+  ),
+  /** One repeating feed entry. */
+  item: entry(
+    "activity feed item",
+    (s) => asScope(s).locator(".ActivityItem"),
+    (s) => asScope(s).locator("[class*='ActivityItem' i]"),
+    true,
+  ),
+  /** Header line carrying the actor link and the activity phrasing. */
+  header: entry(
+    "activity item header",
+    (s) => asScope(s).locator(".ActivityItem_headerContent").first(),
+    (s) => asScope(s).locator("[class*='ActivityItem_header' i]").first(),
+    true,
+  ),
+  /** The actor: "You" for the signed-in rep, otherwise a person's name. */
+  actorLink: entry(
+    "activity item actor link",
+    (s) => asScope(s).locator(".ActivityItem_headerContent a").first(),
+    (s) => asScope(s).locator("[class*='headerContent' i] a").first(),
+    true,
+  ),
+  /** <time datetime="ISO"> — the authoritative timestamp. */
+  timestamp: entry(
+    "activity item timestamp",
+    (s) => asScope(s).locator(".ActivityItem_date time").first(),
+    (s) => asScope(s).locator("time[datetime]").first(),
+    true,
+  ),
+  /** The note/body text of a logged activity. */
+  body: entry(
+    "activity item body",
+    (s) => asScope(s).locator(".ActivityItem_contentWrapper").first(),
+    (s) => asScope(s).locator("[class*='ActivityItem_content' i]").first(),
+    true,
   ),
 };
 
