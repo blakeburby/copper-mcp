@@ -28,6 +28,13 @@ export interface CreateTaskInput {
 
 export class TasksPage extends BasePage {
   async createTask(input: CreateTaskInput): Promise<TaskSummary> {
+    if (this.cfg.readOnly) {
+      throw new CopperToolError(
+        "READ_ONLY",
+        "Refusing to write: the server is in read-only mode.",
+        "Set COPPER_READ_ONLY=false to enable writes. Registration is skipped in this mode, so reaching this method indicates a caller bypassed tool registration.",
+      );
+    }
     const { title, dueDate, description, parentType, parentId } = input;
 
     // Open the parent record (safe to retry).

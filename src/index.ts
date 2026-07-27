@@ -14,6 +14,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 import { rootLogger } from "./utils/logger.js";
+import { loadConfig } from "./config.js";
 import { getBrowserManager } from "./browser/browserManager.js";
 
 // Session / diagnostics
@@ -56,9 +57,21 @@ async function main(): Promise<void> {
   registerListPipelines(server);
   registerGetOpportunity(server);
 
-  // Write tools (the only ones that mutate the CRM; both confirm-gated).
-  registerLogActivity(server);
-  registerCreateTask(server);
+  // Write tools (the only ones that mutate the CRM). Two locks, deliberately:
+  //  - COPPER_READ_ONLY (default TRUE) prevents them from being REGISTERED at
+  //    all — an MCP client that connects cannot even see them, let alone call
+  //    them. Structural, not policy.
+  //  - Even if a caller reached the page-object methods some other way, they
+  //    also throw at entry when read-only is on (see activitiesPage / tasksPage).
+  //  - When registration IS enabled, both still require confirm:true per call.
+  const cfg = loadConfig();
+  if (!cfg.readOnly) {
+    registerLogActivity(server);
+    registerCreateTask(server);
+    rootLogger.warn("COPPER_READ_ONLY=false — write tools log_activity and create_task ARE registered.");
+  } else {
+    rootLogger.info("Read-only mode: write tools are NOT registered.");
+  }
 
   // Ensure the browser is closed when the MCP transport goes away.
   server.server.onclose = () => {

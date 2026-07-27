@@ -8,6 +8,13 @@ import { resolve } from "node:path";
 export type LogLevel = "error" | "warn" | "info" | "debug";
 
 export interface CopperConfig {
+  /**
+   * When true, the write tools (log_activity, create_task) are NOT registered,
+   * and the underlying page-object mutations throw on entry. Defaults to true
+   * because "you have to opt in to writing" is a much safer default than
+   * "you have to remember not to". Set COPPER_READ_ONLY=false to enable writes.
+   */
+  readOnly: boolean;
   /** Base URL of the Copper web app, e.g. https://app.copper.com */
   baseUrl: string;
   /** Absolute path to the persistent browser profile directory. */
@@ -36,6 +43,19 @@ export interface CopperConfig {
 function envBool(value: string | undefined, fallback: boolean): boolean {
   if (value === undefined) return fallback;
   return /^(1|true|yes|on)$/i.test(value.trim());
+}
+
+/**
+ * Safety-critical version of envBool: it only accepts values we RECOGNISE, and
+ * falls back to the safe default for anything else. Typo-resistant, so setting
+ * COPPER_READ_ONLY=flase (misspelled) cannot silently disable the lock.
+ */
+function envBoolStrict(value: string | undefined, safeDefault: boolean): boolean {
+  if (value === undefined) return safeDefault;
+  const v = value.trim().toLowerCase();
+  if (/^(1|true|yes|on)$/.test(v)) return true;
+  if (/^(0|false|no|off)$/.test(v)) return false;
+  return safeDefault;
 }
 
 function envInt(value: string | undefined, fallback: number): number {
@@ -71,6 +91,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CopperConfig {
       env.COPPER_SCREENSHOT_DIR ?? "./artifacts/screenshots",
     ),
     logLevel: envLogLevel(env.LOG_LEVEL, "info"),
+    readOnly: envBoolStrict(env.COPPER_READ_ONLY, true),
     browserChannel: env.COPPER_BROWSER_CHANNEL?.trim() || undefined,
   };
 

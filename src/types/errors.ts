@@ -13,6 +13,7 @@ export type CopperErrorCode =
   | "UNEXPECTED_UI"
   | "BROWSER_FAILURE"
   | "CONFIRMATION_REQUIRED"
+  | "READ_ONLY"
   | "UNKNOWN";
 
 /**

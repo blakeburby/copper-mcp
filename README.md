@@ -9,6 +9,27 @@ by **driving the Copper web app in a real browser** — no API key required.
 > depends on Copper's UI, it can break when that UI changes. Use at your own risk
 > and within Copper's Terms of Service.
 
+
+## Read-only by default
+
+Two of the thirteen tools mutate Copper: `log_activity` (creates an activity)
+and `create_task` (creates a task). Both are gated by `COPPER_READ_ONLY`, which
+**defaults to `true`** — so out of the box the write tools are **not
+registered** and no MCP client can call them. The startup log makes this
+explicit either way:
+
+    [info] Read-only mode: write tools are NOT registered.
+    [warn] COPPER_READ_ONLY=false — write tools log_activity and create_task ARE registered.
+
+Set `COPPER_READ_ONLY=false` only when you actually want writes. For a
+production Copper account managing real revenue we recommend also authenticating
+the persistent profile as a **read-only Copper user** — browser automation runs
+with exactly the logged-in user's rights, so a read-only user makes the
+guarantee structural rather than code-dependent.
+
+Even with writes enabled, both tools remain **confirm-gated**: `confirm: false`
+returns a preview and writes nothing.
+
 ## Why no API key?
 
 Copper's REST API requires a developer API key, which is gated behind certain

@@ -27,6 +27,13 @@ export class ActivitiesPage extends BasePage {
    * and must have already checked the confirm gate.
    */
   async logActivity(input: LogActivityInput): Promise<ActivitySummary> {
+    if (this.cfg.readOnly) {
+      throw new CopperToolError(
+        "READ_ONLY",
+        "Refusing to write: the server is in read-only mode.",
+        "Set COPPER_READ_ONLY=false to enable writes. Registration is skipped in this mode, so reaching this method indicates a caller bypassed tool registration.",
+      );
+    }
     const { parentType, parentId, details } = input;
 
     // Navigate to the parent record. (Reads/navigation are safe to retry.)
