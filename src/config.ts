@@ -15,6 +15,13 @@ export interface CopperConfig {
    * "you have to remember not to". Set COPPER_READ_ONLY=false to enable writes.
    */
   readOnly: boolean;
+  /**
+   * Network write guard: "off" | "audit" | "block". In read-only mode this
+   * defaults to "block" — mutating HTTP requests to Copper are aborted at the
+   * network layer, the strongest guarantee available when the login has full
+   * write rights and a read-only Copper user isn't an option.
+   */
+  writeGuard: "off" | "audit" | "block";
   /** Base URL of the Copper web app, e.g. https://app.copper.com */
   baseUrl: string;
   /** Absolute path to the persistent browser profile directory. */
@@ -70,6 +77,17 @@ function envLogLevel(value: string | undefined, fallback: LogLevel): LogLevel {
   return fallback;
 }
 
+function parseWriteGuard(
+  value: string | undefined,
+  readOnly: boolean,
+): "off" | "audit" | "block" {
+  const v = (value ?? "").trim().toLowerCase();
+  if (v === "off" || v === "audit" || v === "block") return v;
+  // Unset: in read-only mode block by default (belt-and-braces beneath the DOM
+  // lock); when writes are enabled, don't interfere with them.
+  return readOnly ? "block" : "off";
+}
+
 let cached: CopperConfig | undefined;
 
 /** Build (and memoize) the config from the current environment. */
@@ -81,6 +99,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CopperConfig {
     "",
   );
 
+  const readOnly = envBoolStrict(env.COPPER_READ_ONLY, true);
+
   cached = {
     baseUrl,
     userDataDir: resolve(env.COPPER_USER_DATA_DIR ?? "./.copper-profile"),
@@ -91,7 +111,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CopperConfig {
       env.COPPER_SCREENSHOT_DIR ?? "./artifacts/screenshots",
     ),
     logLevel: envLogLevel(env.LOG_LEVEL, "info"),
-    readOnly: envBoolStrict(env.COPPER_READ_ONLY, true),
+    readOnly,
+    writeGuard: parseWriteGuard(env.COPPER_WRITE_GUARD, readOnly),
     browserChannel: env.COPPER_BROWSER_CHANNEL?.trim() || undefined,
   };
 

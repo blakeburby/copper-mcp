@@ -53,8 +53,15 @@ export class ActivitiesPage extends BasePage {
     const openBtn = await this.resolve(activityComposer.openButton);
     await openBtn.first().click();
     const detailsInput = await this.resolve(activityComposer.detailsInput);
-    await detailsInput.first().click();
-    await detailsInput.first().fill(details);
+    // The composer is a Froala contenteditable (verified live) with no
+    // placeholder, so verify by contenteditable rather than placeholder. The
+    // record-field gate still applies: an "Add *" input refuses.
+    await this.safeFill(
+      detailsInput,
+      { attribute: { name: "contenteditable", pattern: /^true$/i } },
+      details,
+      "activity details editor",
+    );
 
     // Submit EXACTLY ONCE.
     const submit = await this.resolve(activityComposer.submitButton);

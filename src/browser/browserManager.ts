@@ -10,11 +10,12 @@
  *  - Serialize mutations via a mutex so two writes can't collide on the shared page.
  */
 import { chromium, type BrowserContext, type Page } from "playwright";
-import { mkdir } from "node:fs/promises";
+import { mkdir, chmod } from "node:fs/promises";
 import { loadConfig } from "../config.js";
 import { rootLogger } from "../utils/logger.js";
 import { Mutex } from "../utils/mutex.js";
 import { errors } from "../types/errors.js";
+import { installWriteGuard, type WriteGuardStats } from "./writeGuard.js";
 
 export class BrowserManager {
   private context: BrowserContext | undefined;
@@ -23,6 +24,8 @@ export class BrowserManager {
   private disconnected = false;
   private closing = false;
   readonly mutationLock = new Mutex();
+  /** Populated when the network write guard is installed. */
+  writeGuardStats?: WriteGuardStats;
 
   /** Is a live, connected context currently held? */
   isRunning(): boolean {
@@ -46,6 +49,14 @@ export class BrowserManager {
   private async launch(headlessOverride?: boolean): Promise<BrowserContext> {
     const cfg = loadConfig();
     await mkdir(cfg.userDataDir, { recursive: true });
+    // The profile holds a LIVE authenticated CRM session — on a client
+    // engagement, the client's session. Owner-only access, every launch (not
+    // just creation), so a copied or migrated profile does not keep loose modes.
+    await chmod(cfg.userDataDir, 0o700).catch((err) => {
+      rootLogger.warn("Could not restrict profile directory permissions", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
 
     const headless = headlessOverride ?? cfg.headless;
     rootLogger.info("Launching persistent browser context", {
@@ -84,6 +95,9 @@ export class BrowserManager {
       this.context = undefined;
       this.page = undefined;
     });
+
+    // Network write guard — the backstop beneath the DOM read-only lock.
+    this.writeGuardStats = await installWriteGuard(context, cfg.writeGuard, rootLogger);
 
     this.context = context;
     // Reuse the initial page persistent context opens with, if any.

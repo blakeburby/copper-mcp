@@ -27,6 +27,29 @@ the persistent profile as a **read-only Copper user** — browser automation run
 with exactly the logged-in user's rights, so a read-only user makes the
 guarantee structural rather than code-dependent.
 
+### Network write guard (the backstop for a full-write login)
+
+If the login you must use has full write rights — a client's own login, with no
+read-only Copper user available — the DOM lock is not enough on its own, because
+any browser automation *could* in principle submit a form. So read-only mode also
+installs a **network guard** that inspects every HTTP request and can abort
+writes before they reach Copper.
+
+Copper's read path uses `POST` (verified live: `POST /…/contacts_api/search`),
+so a blanket POST block would break reads. The guard is precise instead:
+
+- `GET`/`HEAD` → always allowed (reads)
+- `PUT`/`PATCH`/`DELETE` to Copper → **blocked** (reads never use these)
+- `POST` to a Copper read endpoint (`*_api/`, `/search`, `/analytics`) → allowed
+- `POST` to any other Copper path → **blocked** (fail-safe: a probable write)
+
+Controlled by `COPPER_WRITE_GUARD` = `off` | `audit` | `block`. It **defaults to
+`block`** in read-only mode. `audit` logs every mutating request without
+blocking — useful for producing a forensic record that a sync wrote nothing.
+
+Proven on a live account: a full read-only sync ran end-to-end under `block`
+mode with every read succeeding and zero writes attempted.
+
 Even with writes enabled, both tools remain **confirm-gated**: `confirm: false`
 returns a preview and writes nothing.
 

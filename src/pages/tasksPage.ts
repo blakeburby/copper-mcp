@@ -68,24 +68,46 @@ export class TasksPage extends BasePage {
     const taskMenuItem = await this.resolve(createModal.createMenuItem("Task"));
     await taskMenuItem.first().click();
 
+    // Every fill below is target-verified against the composer field's own
+    // placeholder (captured live 2026-07-24), so a drifted selector refuses
+    // rather than typing into whatever it landed on.
     const titleInput = await this.resolve(taskComposer.titleInput);
-    await titleInput.first().click();
-    await titleInput.first().fill(title);
+    await this.safeFill(titleInput, { placeholder: /^add name$/i }, title, "task title input");
 
     // Attach the task to the parent record via the "Related To" typeahead.
     const relatedTo = await this.tryResolve(taskComposer.relatedToInput, { timeout: 2_000 });
     if (relatedTo) {
-      await relatedTo.first().click();
-      await relatedTo.first().fill(parentId);
+      await this.safeFill(
+        relatedTo,
+        { placeholder: /^add relation$/i },
+        parentId,
+        "task related-to input",
+      );
     }
 
     if (dueDate) {
       const dueInput = await this.tryResolve(taskComposer.dueDateInput, { timeout: 2_000 });
-      if (dueInput) await dueInput.first().fill(dueDate);
+      // The due-date placeholder is TODAY'S DATE (dynamic — verified live), so
+      // match its shape rather than a literal.
+      if (dueInput) {
+        await this.safeFill(
+          dueInput,
+          { placeholder: /^\d{1,2}\/\d{1,2}\/\d{4}$/ },
+          dueDate,
+          "task due-date input",
+        );
+      }
     }
     if (description) {
       const descInput = await this.tryResolve(taskComposer.descriptionInput, { timeout: 2_000 });
-      if (descInput) await descInput.first().fill(description);
+      if (descInput) {
+        await this.safeFill(
+          descInput,
+          { placeholder: /^add description$/i },
+          description,
+          "task description input",
+        );
+      }
     }
 
     // Submit ONCE.

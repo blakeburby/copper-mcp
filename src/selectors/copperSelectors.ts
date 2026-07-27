@@ -46,14 +46,6 @@ function entry(
 /** Record kinds and their Copper URL vocabulary. */
 export type EntityKind = "person" | "company" | "opportunity" | "lead";
 
-/** VERIFIED 2026-07-24 — plural segment used in list routes / fullProfile ids. */
-const PLURAL: Record<EntityKind, string> = {
-  person: "people",
-  company: "companies",
-  opportunity: "opportunities",
-  lead: "leads",
-};
-
 export const routes = {
   // VERIFIED 2026-07-24 — app.copper.com redirects unauthenticated users to
   // /users/sign_in; SSO/Google/sign-up live under these paths.

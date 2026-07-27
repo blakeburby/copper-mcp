@@ -29,6 +29,15 @@ import {
  */
 const PRIMARY_PROBE_MS = 2_000;
 
+/**
+ * How safeFill verifies the element it is about to type into: by its
+ * placeholder (Copper's stable handle for inputs) or, for placeholder-less
+ * targets like the Froala contenteditable, by another attribute.
+ */
+export type FillTarget =
+  | { placeholder: RegExp }
+  | { attribute: { name: string; pattern: RegExp } };
+
 export class BasePage {
   protected readonly cfg = loadConfig();
 
@@ -334,13 +343,100 @@ export class BasePage {
   }
 
   /**
-   * Type a query into the global search box and submit. Best-effort: resolves the
-   * search input via primary/fallback selectors.
+   * Copper's record-detail fields are inline-editable <input>s whose
+   * placeholders follow the "Add <Field>" convention ("Add Name", "Add Email" —
+   * verified live 2026-07-24). Typing into one of those SAVES data on the
+   * record. This signature is the negative gate in safeFill.
+   */
+  private static readonly RECORD_FIELD_PLACEHOLDER = /^add\s/i;
+
+  /**
+   * Fill a locator ONLY after verifying, at the moment of typing, that the
+   * resolved element is the field we think it is.
+   *
+   * Why this exists: this server may run on a login with full write rights over
+   * a production CRM (a read-only Copper user is not always available). Selector
+   * drift — especially through the looser fallback selectors — could resolve a
+   * "search box" to an inline-editable record field, and fill() would then
+   * silently overwrite real data. "The selector is probably right" is not an
+   * acceptable standard on that account; "the target is verified safe right
+   * now" is. On mismatch this throws SELECTOR_FAILURE and captures diagnostics
+   * rather than typing.
+   */
+  async safeFill(
+    locator: Locator,
+    target: FillTarget,
+    value: string,
+    label: string,
+  ): Promise<void> {
+    const el = locator.first();
+    const placeholder = await this.attrOf(el, "placeholder");
+
+    let verified: boolean;
+    let expectation: string;
+    let recordFieldGateApplies: boolean;
+
+    if ("placeholder" in target) {
+      verified = placeholder !== null && target.placeholder.test(placeholder);
+      expectation = `placeholder ${target.placeholder}`;
+      // If the caller EXPECTS an "Add *" field (e.g. the task composer's own
+      // "Add Name"), the negative gate below would always fire — skip it, the
+      // positive match already pins the exact field.
+      recordFieldGateApplies = !BasePage.RECORD_FIELD_PLACEHOLDER.test(
+        target.placeholder.source.replace(/^\^/, "").replace(/\\s/g, " "),
+      );
+    } else {
+      const attrValue = await this.attrOf(el, target.attribute.name);
+      verified = attrValue !== null && target.attribute.pattern.test(attrValue);
+      expectation = `attribute ${target.attribute.name}~${target.attribute.pattern}`;
+      recordFieldGateApplies = true;
+    }
+
+    const isRecordField =
+      recordFieldGateApplies &&
+      placeholder !== null &&
+      BasePage.RECORD_FIELD_PLACEHOLDER.test(placeholder);
+
+    if (!verified || isRecordField) {
+      const diag = await captureDiagnostics(this.page, `safefill_refused_${label}`, {
+        includeHtml: true,
+        logger: this.log,
+        consoleMessages: this.consoleMessages,
+      });
+      // The record-field reason goes in the MESSAGE, not just details: "typing
+      // here would modify CRM data" is exactly the thing that must be visible at
+      // the top level of any log or error surface, never buried.
+      const reason = isRecordField
+        ? `it matches Copper's inline-editable record-field signature (placeholder ${JSON.stringify(placeholder)}) — typing here would modify CRM data`
+        : `the resolved element (placeholder ${JSON.stringify(placeholder)}) does not verify as "${label}" (expected ${expectation})`;
+      const e = new CopperToolError(
+        "SELECTOR_FAILURE",
+        `Refusing to type into "${label}": ${reason}. The selector has likely drifted; nothing was typed.`,
+        "Target-verified fill (safeFill) refused the element it resolved. Re-verify the selector against the live Copper UI.",
+      );
+      e.artifactPath = diag.screenshotPath;
+      throw e;
+    }
+
+    await el.click();
+    await el.fill(value);
+  }
+
+  /**
+   * Type a query into the global search box and submit.
+   *
+   * The fill is target-verified (see safeFill): even if the search selector
+   * drifts to some other input, nothing is typed unless the element carries the
+   * verified global-search placeholder.
    */
   async fillGlobalSearch(query: string): Promise<void> {
     const input = await this.resolve(globalSearch.input);
-    await input.first().click();
-    await input.first().fill(query);
+    await this.safeFill(
+      input,
+      { placeholder: /search by name.*email.*domain/i },
+      query,
+      "global search input",
+    );
     await input.first().press("Enter");
     await this.waitForSettled();
   }
