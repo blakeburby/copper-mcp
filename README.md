@@ -64,6 +64,28 @@ a real read passes.
 Even with writes enabled, both tools remain **confirm-gated**: `confirm: false`
 returns a preview and writes nothing.
 
+### First-time client onboarding (run once per account, read-only)
+
+The write-guard allowlist and every selector were verified against a small dev
+account. A real client's Copper may use record types, custom fields, or API
+shapes we have not seen. Before trusting block-mode at scale, discover what THEIR
+account actually does — safely, with no mutations:
+
+1. Start the server with `COPPER_READ_ONLY=true COPPER_WRITE_GUARD=audit` and
+   authenticate (`initialize_copper_session`). Audit mode observes traffic without
+   blocking, so an unrecognised read still completes and can be seen.
+2. Call the **`discover_read_endpoints`** tool. It drives the read flows (list
+   people, open a record, read the activity feed, search companies/opportunities,
+   list pipelines) while observing every network request, and reports:
+   - `readsBlockedByGuard` — Copper reads that block-mode WOULD abort. This must
+     be **empty**. Anything here is an allowlist gap: add it to `isKnownReadPost`
+     in `src/browser/writeGuard.ts` (with a test) before going live.
+   - `selectorChecks` — which read flows resolved on this account and which need
+     selector work.
+   - `endpoints` — the full classified traffic table, for review.
+3. Only once discovery is clean (`healthy: true`) proceed to the per-run pre-flight
+   below and switch to `COPPER_WRITE_GUARD=block`.
+
 ### Pre-flight before pointing at a production account
 
 Do this every time before running against a client's live Copper:
@@ -222,6 +244,7 @@ Or add to `.mcp.json` in your project:
 | `get_copper_session_status` | read | Report browser running / authenticated / expired / page usable. |
 | `capture_copper_diagnostics` | debug | Save a screenshot + sanitized HTML + URL/title of the current page. |
 | `verify_write_guard` | safety | Non-destructively prove the network write guard is live: a synthetic write is aborted, a real read passes. Run before any production run. |
+| `discover_read_endpoints` | onboarding | Read-only audit: drive the read flows while observing traffic, then report which endpoints block-mode allows/blocks, any reads the guard would wrongly block, and which selectors resolved. Run once per new client account. |
 
 ### Read
 | Tool | Inputs | Returns |

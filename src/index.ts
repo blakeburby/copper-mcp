@@ -22,6 +22,7 @@ import { registerInitializeSession } from "./tools/initializeSession.js";
 import { registerGetSessionStatus } from "./tools/getSessionStatus.js";
 import { registerCaptureDiagnostics } from "./tools/captureDiagnostics.js";
 import { registerVerifyWriteGuard } from "./tools/verifyWriteGuard.js";
+import { registerDiscoverReadEndpoints } from "./tools/discoverReadEndpoints.js";
 
 // Read tools
 import { registerSearchPeople } from "./tools/searchPeople.js";
@@ -48,6 +49,10 @@ async function main(): Promise<void> {
   registerGetSessionStatus(server);
   registerCaptureDiagnostics(server);
   registerVerifyWriteGuard(server);
+  // Read-only onboarding audit — always available; safe to run against a client
+  // account (it observes traffic and drives read flows only). See the pre-flight
+  // runbook in README.
+  registerDiscoverReadEndpoints(server);
 
   // Read tools.
   registerSearchPeople(server);

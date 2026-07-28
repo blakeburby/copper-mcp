@@ -42,7 +42,6 @@ import type { Logger } from "../utils/logger.js";
 
 export type WriteGuardMode = "off" | "audit" | "block";
 
-const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 /** Reads never use these, so on a Copper host they are unambiguously writes. */
 const ALWAYS_WRITE = new Set(["PUT", "PATCH", "DELETE"]);
 
@@ -92,6 +91,25 @@ function isCopperHost(url: string): boolean {
   }
 }
 
+/**
+ * How a request is classified. This is the SINGLE source of truth for both the
+ * live guard and the onboarding discovery tool — so the discovery report
+ * predicts exactly what block-mode would do to the client's real traffic.
+ */
+export type RequestClass =
+  | "non-copper" // any host that is not Copper — never our concern
+  | "copper-read-get" // GET/HEAD to Copper — a read, always allowed
+  | "copper-read-post" // POST to a known Copper read op — allowed
+  | "copper-mutation"; // PUT/PATCH/DELETE, or POST to a non-read Copper path — BLOCKED in block mode
+
+export function classifyCopperRequest(method: string, url: string): RequestClass {
+  const m = method.toUpperCase();
+  if (!isCopperHost(url)) return "non-copper";
+  if (m === "GET" || m === "HEAD") return "copper-read-get";
+  if (m === "POST" && isKnownReadPost(safePath(url))) return "copper-read-post";
+  return "copper-mutation";
+}
+
 export interface WriteGuardStats {
   mutatingSeen: number;
   mutatingBlocked: number;
@@ -115,17 +133,13 @@ export async function installWriteGuard(
   await context.route("**/*", async (route: Route, request: Request) => {
     const method = request.method().toUpperCase();
 
-    if (!MUTATING.has(method) || !isCopperHost(request.url())) {
+    // One classifier, shared with the discovery tool. Anything that is not a
+    // Copper mutation is allowed and not counted (reads, non-Copper traffic).
+    if (classifyCopperRequest(method, request.url()) !== "copper-mutation") {
       return route.continue();
     }
 
     const path = safePath(request.url());
-
-    // A POST to a read-shaped Copper endpoint is a READ — never block it, and
-    // don't count it as a mutation. (Copper reads via POST /…_api/search.)
-    if (method === "POST" && isKnownReadPost(path)) {
-      return route.continue();
-    }
 
     // Everything left is a probable write: PUT/PATCH/DELETE, or a POST to a
     // non-read Copper path.
