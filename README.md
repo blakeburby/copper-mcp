@@ -41,17 +41,49 @@ so a blanket POST block would break reads. The guard is precise instead:
 - `GET`/`HEAD` → always allowed (reads)
 - `PUT`/`PATCH`/`DELETE` to Copper → **blocked** (reads never use these)
 - `POST` to a Copper read endpoint (`*_api/`, `/search`, `/analytics`) → allowed
+- `POST` to a **known read** operation → allowed (an allowlist of query shapes —
+  `/search`, `reports_api`, `/analytics`, and common query verbs — **not** a
+  blanket `_api/` match)
 - `POST` to any other Copper path → **blocked** (fail-safe: a probable write)
+
+Reads are recognised by their **query shape**, not by living under `_api/` —
+Copper namespaces its whole API there, so an `_api/`-based allow would let a
+write like `.../activities_api/create` through. The classifier was corrected to
+an explicit read allowlist and pinned by tests on both sides (real reads must
+pass, `_api/` writes must block).
 
 Controlled by `COPPER_WRITE_GUARD` = `off` | `audit` | `block`. It **defaults to
 `block`** in read-only mode. `audit` logs every mutating request without
 blocking — useful for producing a forensic record that a sync wrote nothing.
 
 Proven on a live account: a full read-only sync ran end-to-end under `block`
-mode with every read succeeding and zero writes attempted.
+mode with every read succeeding and zero writes attempted; and the
+`verify_write_guard` tool confirmed live that a synthetic write is aborted while
+a real read passes.
 
 Even with writes enabled, both tools remain **confirm-gated**: `confirm: false`
 returns a preview and writes nothing.
+
+### Pre-flight before pointing at a production account
+
+Do this every time before running against a client's live Copper:
+
+1. **Confirm the mode from the startup log.** It says exactly one of:
+   `Read-only mode: write tools are NOT registered.` (safe default) or
+   `COPPER_READ_ONLY=false — write tools ... ARE registered.`
+2. **Run the guard self-test:** call the `verify_write_guard` tool (read-only,
+   touches no data). A healthy result is
+   `{ blockedSynthetic: true, allowedRead: true, healthy: true }` — a synthetic
+   write was aborted and a real read passed. If `healthy` is false, **stop.**
+3. **Take a safety net.** Point at a sandbox Copper first if one exists, or export
+   the account's data beforehand. The layered guards make writes structurally very
+   hard; a backup makes "very hard" into "recoverable even if we're wrong."
+
+Note observed on the dev account: the write tools' composer selectors are
+currently **UNVERIFIED and do not resolve**, so `log_activity` / `create_task`
+fail before any network write even when registered — a third, incidental barrier.
+Do not rely on it; the read-only default and the network guard are the real
+controls.
 
 ## Why no API key?
 
@@ -189,6 +221,7 @@ Or add to `.mcp.json` in your project:
 | `initialize_copper_session` | setup | Open Copper headed and guide manual login; persist the session. |
 | `get_copper_session_status` | read | Report browser running / authenticated / expired / page usable. |
 | `capture_copper_diagnostics` | debug | Save a screenshot + sanitized HTML + URL/title of the current page. |
+| `verify_write_guard` | safety | Non-destructively prove the network write guard is live: a synthetic write is aborted, a real read passes. Run before any production run. |
 
 ### Read
 | Tool | Inputs | Returns |

@@ -21,6 +21,7 @@ import { getBrowserManager } from "./browser/browserManager.js";
 import { registerInitializeSession } from "./tools/initializeSession.js";
 import { registerGetSessionStatus } from "./tools/getSessionStatus.js";
 import { registerCaptureDiagnostics } from "./tools/captureDiagnostics.js";
+import { registerVerifyWriteGuard } from "./tools/verifyWriteGuard.js";
 
 // Read tools
 import { registerSearchPeople } from "./tools/searchPeople.js";
@@ -46,6 +47,7 @@ async function main(): Promise<void> {
   registerInitializeSession(server);
   registerGetSessionStatus(server);
   registerCaptureDiagnostics(server);
+  registerVerifyWriteGuard(server);
 
   // Read tools.
   registerSearchPeople(server);

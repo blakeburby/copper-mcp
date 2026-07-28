@@ -23,14 +23,15 @@
  *   POST /api/v1/companies/{id}/tasks_api/search        (reading tasks)
  *   POST /api/v1/companies/{id}/reports_api/...          (reading activity)
  *
- * A blanket "block all POST" would break every read. But the reads sit in a
- * distinct `*_api/` namespace, and reads never use PUT/PATCH/DELETE. So the
- * classifier is:
+ * A blanket "block all POST" would break every read, and reads never use
+ * PUT/PATCH/DELETE. So the classifier is:
  *
- *   GET / HEAD                      → always allow (reads)
- *   PUT / PATCH / DELETE to Copper  → BLOCK (reads never use these)
- *   POST to a Copper read endpoint  → allow  (the `*_api/`, /search, analytics)
- *   POST to any OTHER Copper path    → BLOCK (fail safe: a probable write)
+ *   GET / HEAD                          → always allow (reads)
+ *   PUT / PATCH / DELETE to Copper      → BLOCK (reads never use these)
+ *   POST to a KNOWN Copper read op      → allow  (see isKnownReadPost — an
+ *                                          allowlist of query shapes, NOT a
+ *                                          blanket `_api/` match)
+ *   POST to any OTHER Copper path       → BLOCK (fail safe: a probable write)
  *
  * The bias is deliberately toward blocking the unknown. On an account managing
  * real revenue, a blocked read surfaces loudly as a fetch failure; an allowed
@@ -46,16 +47,39 @@ const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const ALWAYS_WRITE = new Set(["PUT", "PATCH", "DELETE"]);
 
 /**
- * A POST path that Copper's READ path uses. VERIFIED: reads namespace under
- * `*_api/` and hit /search and /analytics; writes use plain resource paths.
+ * Whether a POST path is one of Copper's KNOWN READ operations.
+ *
+ * This is an ALLOWLIST, not a guess. The earlier version allowed any path
+ * containing `_api/`, on the untested assumption that "writes use plain resource
+ * paths". That assumption was never measured — only reads were ever observed —
+ * and Copper namespaces its whole API under `_api/`, so a write posting to e.g.
+ * `.../activities_api/create` would have been waved straight through. That hole
+ * is the reason this function was rewritten.
+ *
+ * The families below are the reads VERIFIED 2026-07-27 during a full read-only
+ * sync (list_people → get_person → get_person_activities across contacts):
+ *   POST …/contacts_api/search        …/tasks_api/search
+ *   POST …/agenda_items_api/search    …/contact_suggestions_api/search
+ *   POST …/reports_api/activity_by_user
+ *   POST …/analytics/track
+ * plus common query verbs, so an unobserved READ is tolerated — but anything
+ * that is not recognisably a query (every CRUD write) is blocked. The bias is
+ * toward blocking the unknown: a wrongly-blocked read fails loudly; a wrongly-
+ * allowed write is silent and irreversible. The full-sync-in-block regression
+ * test confirms this allowlist does not starve a real sync of any read.
  */
-function isReadShapedPost(path: string): boolean {
-  return (
-    /_api\//i.test(path) ||
-    /\/search(\/|$)/i.test(path) ||
-    /\/analytics\//i.test(path) ||
-    /\/track(\/|$)/i.test(path)
-  );
+function isKnownReadPost(path: string): boolean {
+  const p = path.toLowerCase();
+  // Observed read families.
+  if (/\/search(\/|$)/.test(p)) return true; // *_api/search (contacts/tasks/agenda/suggestions)
+  if (/\/reports?_api\//.test(p)) return true; // reports_api/activity_by_user
+  if (/\/analytics(\/|$)/.test(p) || /\/track(\/|$)/.test(p)) return true;
+  // General query verbs — read shapes that don't mutate. Deliberately excludes
+  // create/update/delete/save and bare-resource POSTs, which are writes.
+  if (/\/(list|index|lookup|autocomplete|suggestions?|count|filter|show|batch_get)(\/|$)/.test(p)) {
+    return true;
+  }
+  return false;
 }
 
 /** Hosts we consider "Copper" — mutations here touch CRM data. */
@@ -99,7 +123,7 @@ export async function installWriteGuard(
 
     // A POST to a read-shaped Copper endpoint is a READ — never block it, and
     // don't count it as a mutation. (Copper reads via POST /…_api/search.)
-    if (method === "POST" && isReadShapedPost(path)) {
+    if (method === "POST" && isKnownReadPost(path)) {
       return route.continue();
     }
 

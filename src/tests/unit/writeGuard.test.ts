@@ -58,11 +58,30 @@ describe("write guard — what it blocks", () => {
     const { route } = await run("block", "PUT", "https://api.copper.com/v1/tasks/1");
     expect(route!.aborted).toBe("blockedbyclient");
   });
+
+  // The hole that was closed: the earlier classifier allowed ANY path containing
+  // `_api/`, so a WRITE namespaced under `_api/` slipped through. These must now
+  // be blocked — reads are recognised by their QUERY shape, not by `_api/`.
+  it("BLOCKS a write that is namespaced under _api/ (the closed hole)", async () => {
+    const writes = [
+      "https://app.copper.com/api/v1/companies/1/activities_api/create",
+      "https://app.copper.com/api/v1/companies/1/contacts_api/update",
+      "https://app.copper.com/api/v1/companies/1/tasks_api/save",
+      "https://app.copper.com/api/v1/companies/1/activities_api/1/delete",
+      "https://app.copper.com/api/v1/companies/1/activities", // bare resource POST
+    ];
+    for (const url of writes) {
+      const { route } = await run("block", "POST", url);
+      expect(route!.aborted, url).toBe("blockedbyclient");
+      expect(route!.continued, url).toBe(false);
+    }
+  });
 });
 
 describe("write guard — Copper reads via POST must survive", () => {
-  // VERIFIED live: Copper's read path is POST to the *_api/ namespace. Blocking
-  // these would break every read, so they must pass untouched.
+  // VERIFIED live (full read-only sync): these are Copper's real read endpoints,
+  // recognised by their QUERY shape (/search, reports_api, analytics), not by a
+  // blanket _api/ match. Blocking them would break every read.
   const READ_POSTS = [
     "https://app.copper.com/api/v1/companies/616931/contacts_api/search",
     "https://app.copper.com/api/v1/companies/616931/tasks_api/search",
