@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>People (virtualized)</title>
+    <link rel="stylesheet" href="./_copper.css" />
+    <style>
+      /* Force a scrollable list container so scrollIntoViewIfNeeded drives the
+         lazy loader, regardless of _copper.css. */
+      .WebAppContent { height: 240px; overflow-y: auto; }
+      tr.et-tr td { padding: 10px; }
+    </style>
+  </head>
+  <body>
+    <!--
+      A lazy-loading (append-on-scroll) People list, to exercise collectAllRowLinks.
+      Real Copper virtualizes its list, so a single DOM read only ever sees the
+      first screen. This fixture reveals 50 fictional records 10 at a time as the
+      container is scrolled to the bottom, matching the REAL row DOM:
+      tbody.ListViewTableBody > tr.et-tr, a.fullProfileLink, span.AvatarPill_text.
+      Because every scroll round re-reads all rendered rows, it also exercises the
+      collector's dedup-by-href.
+    -->
+    <div class="WebAppMain">
+      <div class="WebAppContent">
+        <table class="ListViewTable">
+          <thead>
+            <tr class="et-tr ember-view"><th>Person</th><th>Title</th><th>Email</th></tr>
+          </thead>
+          <tbody class="ember-view ListViewTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      const PEOPLE = Array.from({ length: 50 }, (_, i) => ({
+        id: 100000 + i,
+        name: "Contact " + String(i + 1).padStart(2, "0"),
+      }));
+      const BATCH = 10;
+      let shown = 0;
+      const tbody = document.querySelector("tbody.ListViewTableBody");
+      const container = document.querySelector(".WebAppContent");
+
+      function rowHtml(p) {
+        return (
+          '<tr class="et-tr ember-view">' +
+          '<td class="is-fixed-left ember-view"><div class="browse_field CardinalField"><div class="CardinalField_read">' +
+          '<a class="ember-view fullProfileLink" href="#/browse/list/people/default?fullProfile=people-' + p.id + '">' +
+          '<div class="AvatarPill PersonField_pill"><span class="AvatarPill_text">' + p.name + "</span></div>" +
+          "</a></div></div></td>" +
+          "<td>Role</td><td>" + p.name.replace(/\s/g, "").toLowerCase() + "@x.example</td></tr>"
+        );
+      }
+
+      function loadMore() {
+        const next = PEOPLE.slice(shown, shown + BATCH);
+        for (const p of next) tbody.insertAdjacentHTML("beforeend", rowHtml(p));
+        shown += next.length;
+      }
+
+      container.addEventListener("scroll", () => {
+        if (container.scrollTop + container.clientHeight >= container.scrollHeight - 20) {
+          if (shown < PEOPLE.length) loadMore();
+        }
+      });
+
+      loadMore(); // initial screen
+    </script>
+  </body>
+</html>

@@ -28,12 +28,17 @@ export class PeoplePage extends BasePage {
    * search_people needs a query, which makes "sync everyone" awkward and
    * silently partial — a query that matches nothing looks identical to an empty
    * CRM. Loading the list directly is the honest primitive for enumeration.
+   *
+   * Scrolls to enumerate the WHOLE roster (Copper virtualizes the list, so a
+   * single DOM read would only see the first screen). `complete` reports whether
+   * the end was reached or `cap` truncated the result — the caller must surface
+   * a truncation, never treat a partial roster as the whole account.
    */
-  async list(limit: number): Promise<PersonSummary[]> {
+  async list(cap: number): Promise<{ people: PersonSummary[]; complete: boolean }> {
     return this.read("list_people", async () => {
       await this.gotoAppRoute(routes.hash.people);
-      const rows = await this.collectRowLinks(limit);
-      return rows.map((r) => this.toSummary(r.name, r.href));
+      const { rows, complete } = await this.collectAllRowLinks(cap);
+      return { people: rows.map((r) => this.toSummary(r.name, r.href)), complete };
     });
   }
 

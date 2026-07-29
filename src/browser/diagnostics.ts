@@ -6,11 +6,19 @@
  * We deliberately DO NOT write cookies, tokens, storage state, or form field
  * values into these artifacts.
  */
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import type { Page } from "playwright";
 import { loadConfig } from "../config.js";
 import { rootLogger, type Logger } from "../utils/logger.js";
+
+/**
+ * Cap on files kept in the artifacts directory. A long run over thousands of
+ * contacts can produce a failure (up to 3 files) per contact; without a cap the
+ * directory grows without bound. Newest are kept — filenames are timestamp-
+ * prefixed, so a lexical sort is chronological.
+ */
+const MAX_ARTIFACT_FILES = 450;
 
 export interface DiagnosticsResult {
   screenshotPath?: string;
@@ -93,6 +101,8 @@ export async function captureDiagnostics(
       htmlPath: result.htmlPath,
       url: result.url,
     });
+
+    await pruneArtifacts(cfg.screenshotDir, log);
   } catch (err) {
     log.warn("Failed to capture diagnostics (ignored).", {
       error: err instanceof Error ? err.message : String(err),
@@ -100,4 +110,21 @@ export async function captureDiagnostics(
   }
 
   return result;
+}
+
+/**
+ * Keep the artifacts directory bounded: delete the oldest files beyond
+ * MAX_ARTIFACT_FILES. Best-effort — never throws into the caller. Filenames are
+ * timestamp-prefixed, so a lexical sort is oldest-first.
+ */
+async function pruneArtifacts(dir: string, log: Logger): Promise<void> {
+  try {
+    const names = (await readdir(dir)).sort();
+    if (names.length <= MAX_ARTIFACT_FILES) return;
+    const toDelete = names.slice(0, names.length - MAX_ARTIFACT_FILES);
+    await Promise.all(toDelete.map((n) => unlink(join(dir, n)).catch(() => undefined)));
+    log.info(`Pruned ${toDelete.length} old diagnostic artifact(s) (cap ${MAX_ARTIFACT_FILES}).`);
+  } catch {
+    /* best-effort — a prune failure must never mask the original error */
+  }
 }

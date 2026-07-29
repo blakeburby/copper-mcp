@@ -160,11 +160,11 @@ async function runWalkthrough(
 
   const roster = await step(
     "list_people",
-    () => people.list(25),
-    (r) => `${r.length} row(s) resolved from the People list view`,
+    () => people.list(200),
+    (r) => `${r.people.length} row(s) enumerated (complete=${r.complete})`,
   );
 
-  const first = roster?.find((p) => p.id);
+  const first = roster?.people.find((p) => p.id);
   if (first?.id) {
     await step(
       "get_person (record fields)",

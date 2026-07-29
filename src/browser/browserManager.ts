@@ -27,6 +27,22 @@ export class BrowserManager {
   /** Populated when the network write guard is installed. */
   writeGuardStats?: WriteGuardStats;
 
+  /** Navigations since the shared page was last recycled (heap-growth bound). */
+  private navCount = 0;
+  /**
+   * Recycle the shared page after this many navigations. A bulk sync drives one
+   * long-lived page through thousands of SPA route changes; recycling bounds the
+   * accumulated DOM/JS heap. Safe because getPage's consumers all re-navigate
+   * (assertAuthenticated → appHome) before using the page, so a fresh blank page
+   * is never used as-is.
+   */
+  private static readonly RECYCLE_EVERY = 250;
+
+  /** Count a navigation toward the recycle threshold (called by page objects). */
+  noteNavigation(): void {
+    this.navCount++;
+  }
+
   /** Is a live, connected context currently held? */
   isRunning(): boolean {
     return !!this.context && !this.disconnected;
@@ -108,6 +124,25 @@ export class BrowserManager {
   /** Get the shared, reused page (creating one if necessary). */
   async getPage(headlessOverride?: boolean): Promise<Page> {
     const context = await this.ensureContext(headlessOverride);
+
+    // Periodically retire the shared page to bound heap growth over long runs.
+    // Only when a mutation is NOT in flight (writes hold the lock and keep the
+    // page reference), and the replacement is a fresh blank page that the next
+    // assertAuthenticated will navigate to Copper before use.
+    if (
+      this.page &&
+      !this.page.isClosed() &&
+      this.navCount >= BrowserManager.RECYCLE_EVERY &&
+      !this.mutationLock.isLocked
+    ) {
+      rootLogger.info(`Recycling shared page after ${this.navCount} navigations to bound memory.`);
+      const old = this.page;
+      this.page = await context.newPage();
+      this.navCount = 0;
+      await old.close().catch(() => undefined);
+      return this.page;
+    }
+
     if (this.page && !this.page.isClosed()) return this.page;
     this.page = context.pages().find((p) => !p.isClosed()) ?? (await context.newPage());
     return this.page;

@@ -14,6 +14,7 @@ import { createLogger, type Logger } from "../utils/logger.js";
 import { retryAsync } from "../utils/retry.js";
 import { errors, CopperToolError } from "../types/errors.js";
 import { captureDiagnostics } from "../browser/diagnostics.js";
+import { getBrowserManager } from "../browser/browserManager.js";
 import {
   auth,
   globalSearch,
@@ -38,35 +39,56 @@ export type FillTarget =
   | { placeholder: RegExp }
   | { attribute: { name: string; pattern: RegExp } };
 
+/**
+ * Page-scoped console ring buffers + a "listeners installed" guard.
+ *
+ * A BasePage is constructed once PER TOOL CALL, but the persistent context
+ * reuses ONE long-lived page across the whole session. Attaching the
+ * console/pageerror/requestfailed/dialog listeners in the constructor therefore
+ * leaked a fresh set of listeners on every call — thousands over a bulk sync,
+ * an unbounded growth vector on the exact long runs this is meant to survive.
+ * Keying by Page installs them EXACTLY ONCE per page; every BasePage wrapping
+ * that page shares the same buffer.
+ */
+const pageConsoleBuffers = new WeakMap<Page, string[]>();
+const pageListenersInstalled = new WeakSet<Page>();
+const MAX_CONSOLE = 300;
+
 export class BasePage {
   protected readonly cfg = loadConfig();
-
-  /** Ring buffer of the page's own console output and uncaught errors. */
-  private readonly consoleBuffer: string[] = [];
-  private static readonly MAX_CONSOLE = 300;
 
   constructor(
     protected readonly page: Page,
     protected readonly log: Logger = createLogger(),
   ) {
+    if (pageListenersInstalled.has(page)) return;
+    pageListenersInstalled.add(page);
+
+    const buffer: string[] = [];
+    pageConsoleBuffers.set(page, buffer);
     const record = (line: string) => {
-      this.consoleBuffer.push(`${new Date().toISOString()} ${line}`);
-      if (this.consoleBuffer.length > BasePage.MAX_CONSOLE) this.consoleBuffer.shift();
+      buffer.push(`${new Date().toISOString()} ${line}`);
+      if (buffer.length > MAX_CONSOLE) buffer.shift();
     };
-    this.page.on("console", (m) => record(`[console.${m.type()}] ${m.text()}`));
-    this.page.on("pageerror", (e) => record(`[pageerror] ${e.message}`));
-    this.page.on("requestfailed", (r) =>
+    page.on("console", (m) => record(`[console.${m.type()}] ${m.text()}`));
+    page.on("pageerror", (e) => record(`[pageerror] ${e.message}`));
+    page.on("requestfailed", (r) =>
       record(`[requestfailed] ${r.method()} ${r.url()} — ${r.failure()?.errorText ?? "?"}`),
     );
 
     // Auto-dismiss unexpected native dialogs so they can't wedge automation.
-    this.page.on("dialog", (dialog: Dialog) => {
+    page.on("dialog", (dialog: Dialog) => {
       this.log.warn("Auto-dismissing native dialog", {
         type: dialog.type(),
         message: dialog.message(),
       });
       void dialog.dismiss().catch(() => undefined);
     });
+  }
+
+  /** This page's console/error ring buffer (page-scoped, shared across calls). */
+  private get consoleBuffer(): string[] {
+    return pageConsoleBuffers.get(this.page) ?? [];
   }
 
   /** The per-selector visibility budget (kept short so fallbacks kick in fast). */
@@ -186,6 +208,8 @@ export class BasePage {
     await this.waitForSettled();
     // The hash change starts a fresh transition; let it finish before reading.
     await this.waitForAppReady();
+    // Count this record navigation toward the page-recycle threshold.
+    getBrowserManager().noteNavigation();
   }
 
   /** Navigate to an app path (relative to the configured base URL). */
@@ -489,6 +513,116 @@ export class BasePage {
       out.push({ name, href: this.absolutize(href) });
     }
     return out;
+  }
+
+  /**
+   * Enumerate ALL rows in a list view by SCROLLING, not just the first rendered
+   * screen. Copper's list virtualizes rows, so a single DOM read
+   * (collectRowLinks) only ever sees the first window — which silently truncates
+   * a large roster to ~the first page. This is the difference between scoring a
+   * 2-contact dev account and a real account with thousands.
+   *
+   * Rows are accumulated across scroll steps and deduped by their record href
+   * (Copper's `?fullProfile=<plural>-<id>`, a stable id), so a virtualizer
+   * unloading earlier rows never loses them. Termination is by STAGNATION: when
+   * scrolling yields no new records for `stagnantLimit` consecutive rounds, the
+   * end has been reached (`complete: true`). Hitting `cap` first means more may
+   * exist (`complete: false`) — a truncation the caller MUST surface, never hide.
+   *
+   * Reads are batched: one `evaluateAll` per round extracts href+name for every
+   * rendered row in a single page call, so cost is ~O(rounds × windowSize), not a
+   * Playwright round-trip per row.
+   *
+   * NOTE: the exact pagination model (infinite-scroll vs windowed virtualization)
+   * is confirmed by the live discovery pass; scrolling the last rendered row into
+   * view is model-agnostic and handles both without a scroll-container selector.
+   */
+  async collectAllRowLinks(
+    cap: number,
+    opts: { stagnantLimit?: number; maxRounds?: number } = {},
+  ): Promise<{ rows: Array<{ name: string | null; href: string | null }>; complete: boolean }> {
+    const stagnantLimit = opts.stagnantLimit ?? 3;
+    const maxRounds = opts.maxRounds ?? 3_000; // hard guard against an infinite loop
+
+    let rows: Locator;
+    try {
+      rows = await this.resolve(list.rows, { timeout: 4_000 });
+    } catch {
+      // Distinguish a genuine empty roster from a broken selector. An empty state
+      // IS a complete answer (zero rows, confirmed); a stale selector is NOT.
+      const empty = await this.tryResolve(list.emptyState, { timeout: 1_500 });
+      this.log.debug(
+        empty ? "Enumeration: empty-state present — zero rows." : "Enumeration: row selector may be stale.",
+      );
+      return { rows: [], complete: !!empty };
+    }
+
+    const seen = new Map<string, { name: string | null; href: string | null }>();
+    let stagnant = 0;
+
+    for (let round = 0; round < maxRounds; round++) {
+      const before = seen.size;
+      // Batched extraction — mirrors the list.rowLink / list.rowName selectors,
+      // read in one page call for the whole rendered window.
+      const batch = await rows
+        .evaluateAll((els) =>
+          els.map((el) => {
+            const a =
+              el.querySelector("a.fullProfileLink") ??
+              el.querySelector("a[href*='fullProfile='], a[href*='#/']");
+            const href = a?.getAttribute("href") ?? null;
+            const nameClean = el.querySelector(".AvatarPill_text")?.textContent ?? null;
+            const nameRaw = a?.textContent ?? null;
+            return { href, nameClean, nameRaw };
+          }),
+        )
+        .catch(() => [] as Array<{ href: string | null; nameClean: string | null; nameRaw: string | null }>);
+
+      for (const r of batch) {
+        const name = (r.nameClean?.trim() || this.stripAvatarInitial(r.nameRaw)) ?? null;
+        if (!r.href && !name) continue; // header row / non-record
+        const key = r.href ?? `name:${name}`;
+        if (!seen.has(key)) seen.set(key, { name, href: this.absolutize(r.href) });
+      }
+
+      if (seen.size >= cap) {
+        this.log.warn(`Enumeration hit cap ${cap} — result is TRUNCATED (more records exist).`);
+        return { rows: [...seen.values()].slice(0, cap), complete: false };
+      }
+
+      stagnant = seen.size === before ? stagnant + 1 : 0;
+      if (stagnant >= stagnantLimit) {
+        this.log.info(`Enumeration complete: ${seen.size} record(s), no new rows after scrolling.`);
+        return { rows: [...seen.values()], complete: true };
+      }
+
+      // Scroll the last rendered row into view to force the next window to render.
+      const total = await rows.count().catch(() => 0);
+      if (total > 0) {
+        await rows
+          .nth(total - 1)
+          .scrollIntoViewIfNeeded({ timeout: 3_000 })
+          .catch(() => undefined);
+      }
+      await this.waitForRowChange(rows, total);
+    }
+
+    this.log.warn(`Enumeration hit maxRounds ${maxRounds} — returning ${seen.size} (TRUNCATED).`);
+    return { rows: [...seen.values()], complete: false };
+  }
+
+  /**
+   * After a scroll, wait briefly for the rendered row set to change so the next
+   * round reads fresh rows — polling so we return the instant new rows appear
+   * rather than burning a fixed sleep.
+   */
+  private async waitForRowChange(rows: Locator, prevCount: number): Promise<void> {
+    const deadline = Date.now() + 1_500;
+    while (Date.now() < deadline) {
+      const c = await rows.count().catch(() => prevCount);
+      if (c !== prevCount) return;
+      await this.page.waitForTimeout(150);
+    }
   }
 
   /** Drop a leading single-letter avatar initial line, e.g. "J\nJim Halpert". */
