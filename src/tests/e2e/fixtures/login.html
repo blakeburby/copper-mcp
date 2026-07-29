@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+  <head><title>Copper — Sign in</title></head>
+  <body>
+    <!-- Mirrors the real Copper /users/sign_in "Welcome back!" screen
+         (2026-07-24): email-first flow with SSO/Google links and an
+         "Account email" field; no password field until after the email step. -->
+    <main>
+      <h1>Welcome back!</h1>
+      <a href="/auth/google_oauth2">Sign in with Google</a>
+      <a href="/sso/sign_in">Sign in with SSO</a>
+      <form>
+        <input type="email" name="email" placeholder="Account email" />
+        <button type="submit">Next</button>
+      </form>
+      <a href="/users/sign_up">Create an account?</a>
+    </main>
+  </body>
+</html>

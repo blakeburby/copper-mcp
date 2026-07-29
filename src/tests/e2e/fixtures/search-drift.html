@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8" /><title>Drift</title></head>
+  <body>
+    <!--
+      THE DRIFT FIXTURE. Simulates the nightmare case for a full-rights client
+      login: Copper redesigns, the global search box disappears, and the loosest
+      fallback selector (getByPlaceholder(/search/i)) resolves to an
+      inline-editable RECORD FIELD whose placeholder happens to contain the word
+      "search" — here, a person's job-title field on some imagined "Add Search
+      Consultant" record form. Typing a query into this input would SAVE data
+      onto a real CRM record.
+
+      fillGlobalSearch must throw SELECTOR_FAILURE here and type NOTHING. If
+      this fixture ever passes by typing, the target-verification guard has
+      regressed and the drift hazard is back.
+    -->
+    <main>
+      <div class="FormFramework_item">
+        <label>Title</label>
+        <input type="text" placeholder="Add Search Consultant Title" value="" id="trap" />
+      </div>
+    </main>
+  </body>
+</html>

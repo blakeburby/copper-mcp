@@ -1,8 +1,9 @@
-import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { copperRequest } from "../copperClient.js";
-import type { CopperOpportunity } from "../copperTypes.js";
-import { errorResult, textResult } from "./result.js";
+import { z } from "zod";
+import { requireAuthenticatedPage } from "../browser/sessionManager.js";
+import { OpportunitiesPage } from "../pages/opportunitiesPage.js";
+import { okResult } from "../utils/response.js";
+import { runTool } from "./_helpers.js";
 
 export function registerGetOpportunity(server: McpServer): void {
   server.registerTool(
@@ -10,27 +11,24 @@ export function registerGetOpportunity(server: McpServer): void {
     {
       title: "Get Opportunity",
       description:
-        "Fetch the full detail of a single opportunity (deal) by its id — including custom " +
-        "fields, tags, status, monetary value, close date, primary contact, and the last " +
-        "activity dates you need to spot stale deals. Use this after search_opportunities to " +
-        "drill into one deal.",
+        "Open a single opportunity (deal) by its Copper id and return the reliably-extractable " +
+        "details: name, company, pipeline, stage, status, owner, value, close date, primary " +
+        "contact, tags, recent activities, and the record URL.",
       inputSchema: {
-        id: z
-          .number()
-          .int()
-          .describe("The Copper opportunity id (from search_opportunities)."),
+        opportunityId: z
+          .string()
+          .min(1)
+          .describe("The Copper opportunity id (as shown in the record URL)."),
       },
     },
-    async ({ id }) => {
-      try {
-        const opportunity = await copperRequest<CopperOpportunity>(
-          "GET",
-          `/opportunities/${id}`,
+    async ({ opportunityId }) =>
+      runTool("get_opportunity", async (log) => {
+        const page = await requireAuthenticatedPage(log);
+        const opportunity = await new OpportunitiesPage(page, log).get(opportunityId);
+        return okResult(
+          `Loaded opportunity "${opportunity.name ?? opportunityId}".`,
+          { opportunity },
         );
-        return textResult(opportunity);
-      } catch (err) {
-        return errorResult(err);
-      }
-    },
+      }),
   );
 }

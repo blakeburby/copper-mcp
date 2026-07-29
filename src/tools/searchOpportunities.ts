@@ -1,14 +1,10 @@
-import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { copperRequest } from "../copperClient.js";
-import type { CopperOpportunity } from "../copperTypes.js";
-import { errorResult, textResult } from "./result.js";
-
-/** Copper returns contact timestamps as Unix seconds; surface a readable date. */
-function toIsoDate(unixSeconds?: number | null): string | null {
-  if (!unixSeconds) return null;
-  return new Date(unixSeconds * 1000).toISOString().slice(0, 10);
-}
+import { z } from "zod";
+import { requireAuthenticatedPage } from "../browser/sessionManager.js";
+import { OpportunitiesPage } from "../pages/opportunitiesPage.js";
+import { limitSchema } from "../schemas/common.js";
+import { okResult } from "../utils/response.js";
+import { runTool } from "./_helpers.js";
 
 export function registerSearchOpportunities(server: McpServer): void {
   server.registerTool(
@@ -16,74 +12,66 @@ export function registerSearchOpportunities(server: McpServer): void {
     {
       title: "Search Opportunities",
       description:
-        "List and filter opportunities (deals) in Copper. Filter by pipeline, stage, or " +
-        "assignee to triage a book of business. Returns each deal's id, name, monetary_value, " +
-        "pipeline_id, pipeline_stage_id, close_date, company_name, and assignee_id. " +
-        "It also returns date_last_contacted (the last call/meeting/email date) and " +
-        "interaction_count, so you can spot stale deals directly from this one call without " +
-        "fetching each opportunity. Stage and pipeline are returned as IDs — call " +
-        "list_pipelines to map them to names. Use get_opportunity for the full record " +
-        "(custom fields, tags, contacts).",
+        "Find opportunities (deals) in Copper. Accepts a free-text query plus optional filter hints " +
+        "(pipeline, stage, owner, status, close-date range). Filters are applied best-effort through " +
+        "the web app's search; any that can't be applied reliably are reported back in the response " +
+        "meta rather than silently ignored. Returns matches with record id, name, and record URL.",
       inputSchema: {
-        pipeline_id: z
-          .number()
-          .int()
+        query: z.string().trim().optional().describe("Free-text search query."),
+        pipeline: z.string().trim().optional().describe("Pipeline name filter hint."),
+        stage: z.string().trim().optional().describe("Stage name filter hint."),
+        owner: z.string().trim().optional().describe("Owner name filter hint."),
+        status: z
+          .string()
+          .trim()
           .optional()
-          .describe("Restrict to a single pipeline (get IDs from list_pipelines)."),
-        pipeline_stage_id: z
-          .number()
-          .int()
+          .describe("Status filter hint (e.g. open, won, lost)."),
+        closeDateFrom: z
+          .string()
+          .trim()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
           .optional()
-          .describe("Restrict to a single stage within a pipeline."),
-        assignee_id: z
-          .number()
-          .int()
+          .describe("Close-date range start (YYYY-MM-DD)."),
+        closeDateTo: z
+          .string()
+          .trim()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
           .optional()
-          .describe("Restrict to deals owned by a specific Copper user."),
-        page_size: z
-          .number()
-          .int()
-          .positive()
-          .max(200)
-          .optional()
-          .describe("Maximum number of opportunities to return (default 20)."),
+          .describe("Close-date range end (YYYY-MM-DD)."),
+        limit: limitSchema,
       },
     },
-    async ({ pipeline_id, pipeline_stage_id, assignee_id, page_size }) => {
-      try {
-        // Copper's search endpoint takes plural array filters; expose singular args
-        // to the agent and wrap them here.
-        const body: Record<string, unknown> = {
-          page_size: page_size ?? 20,
-        };
-        if (pipeline_id !== undefined) body.pipeline_ids = [pipeline_id];
-        if (pipeline_stage_id !== undefined) body.pipeline_stage_ids = [pipeline_stage_id];
-        if (assignee_id !== undefined) body.assignee_ids = [assignee_id];
+    async (input) =>
+      runTool("search_opportunities", async (log) => {
+        const page = await requireAuthenticatedPage(log);
+        const opportunities = await new OpportunitiesPage(page, log).search(input);
 
-        const opportunities = await copperRequest<CopperOpportunity[]>(
-          "POST",
-          "/opportunities/search",
-          body,
+        // Which filters were provided but can only be applied as text hints.
+        const bestEffortFilters = Object.entries({
+          pipeline: input.pipeline,
+          stage: input.stage,
+          owner: input.owner,
+          status: input.status,
+          closeDateFrom: input.closeDateFrom,
+          closeDateTo: input.closeDateTo,
+        })
+          .filter(([, v]) => !!v)
+          .map(([k]) => k);
+
+        return okResult(
+          opportunities.length
+            ? `Found ${opportunities.length} opportunities.`
+            : "No opportunities matched that search.",
+          { opportunities },
+          {
+            recordCount: opportunities.length,
+            bestEffortFilters,
+            filterNote:
+              bestEffortFilters.length > 0
+                ? "These filters were applied as text hints only; verify results match the intended filter."
+                : undefined,
+          },
         );
-
-        if (!opportunities.length) return textResult("No opportunities matched that filter.");
-
-        const rows = opportunities.map((o) => ({
-          id: o.id,
-          name: o.name,
-          monetary_value: o.monetary_value ?? null,
-          pipeline_id: o.pipeline_id ?? null,
-          pipeline_stage_id: o.pipeline_stage_id ?? null,
-          close_date: o.close_date ?? null,
-          company_name: o.company_name ?? null,
-          assignee_id: o.assignee_id ?? null,
-          date_last_contacted: toIsoDate(o.date_last_contacted),
-          interaction_count: o.interaction_count ?? 0,
-        }));
-        return textResult(rows);
-      } catch (err) {
-        return errorResult(err);
-      }
-    },
+      }),
   );
 }

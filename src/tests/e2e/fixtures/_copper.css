@@ -1,0 +1,125 @@
+/*
+ * Shared styling for the Copper fixture pages.
+ *
+ * These fixtures mimic the real Copper web app so the e2e specs exercise the
+ * same DOM SHAPE our page objects will meet in production, and so a human
+ * debugging a selector can open a fixture and see something recognizable.
+ *
+ * Fidelity notes (from live capture 2026-07-24):
+ *   VERIFIED structure — no <table> and no role="row"/role="grid" in list views
+ *   (Copper renders a custom div-based list); no role="navigation" element;
+ *   account-scoped hash routing (#/browse/list/people/default); the global
+ *   search input carries the placeholder used below.
+ *   INVENTED — the exact CSS class names. Copper's real markup uses a
+ *   `Component_element` convention (e.g. GlobalSearchEmptyState_title), so we
+ *   follow that convention, but these specific names are placeholders and must
+ *   NOT be treated as verified selectors.
+ */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  display: flex;
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  color: #1c1130;
+  background: #f5f4f8;
+}
+
+/* ---- Left navigation rail ---------------------------------------------- */
+.WebAppNav {
+  width: 220px;
+  flex: 0 0 220px;
+  background: #2d1a4d;
+  color: #fff;
+  padding: 16px 0;
+}
+.WebAppNav_brand {
+  font-weight: 700;
+  padding: 0 18px 16px;
+  font-size: 15px;
+}
+.WebAppNav_section {
+  padding: 16px 18px 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #b9a9d6;
+}
+.WebAppNav a {
+  display: block;
+  padding: 9px 18px;
+  color: #efe9f8;
+  text-decoration: none;
+}
+.WebAppNav a:hover { background: #3d2663; }
+.WebAppNav a.is-active { background: #4a2f76; font-weight: 600; }
+
+/* ---- Main column ------------------------------------------------------- */
+.WebAppMain { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.WebAppHeader {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 24px;
+  background: #fff;
+  border-bottom: 1px solid #e4e0ec;
+}
+.WebAppHeader_title { font-size: 20px; font-weight: 700; margin: 0; }
+.WebAppHeader_search { flex: 1; max-width: 380px; }
+.GlobalSearchTypeAhead_textField {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #d8d3e2;
+  border-radius: 18px;
+  background: #f3f1f7;
+  font-size: 13px;
+}
+
+.WebAppContent { padding: 20px 24px; }
+
+/* ---- List view (div-based, mirroring real Copper) ---------------------- */
+.ListView { background: #fff; border: 1px solid #e4e0ec; border-radius: 8px; overflow: hidden; }
+.ListView_header {
+  display: flex;
+  padding: 10px 16px;
+  background: #faf9fc;
+  border-bottom: 1px solid #e4e0ec;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: #6b6280;
+  font-weight: 600;
+}
+.ListView_row {
+  display: flex;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0edf5;
+  align-items: center;
+}
+.ListView_row:last-child { border-bottom: 0; }
+.ListView_row:hover { background: #faf9fc; }
+.ListView_cell { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ListView_cell--name { flex: 1.4; font-weight: 600; }
+.ListView_row a { color: #c8386a; text-decoration: none; }
+.ListView_row a:hover { text-decoration: underline; }
+
+/* ---- Empty state (class name VERIFIED from live capture) --------------- */
+.GlobalSearchEmptyState { padding: 48px 16px; text-align: center; color: #6b6280; }
+.GlobalSearchEmptyState_title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+
+/* ---- Record detail ----------------------------------------------------- */
+.RecordDetail { background: #fff; border: 1px solid #e4e0ec; border-radius: 8px; padding: 22px 24px; max-width: 720px; }
+.RecordDetail_name { font-size: 22px; font-weight: 700; margin: 0 0 4px; }
+.RecordDetail_subtitle { color: #6b6280; margin: 0 0 18px; }
+.RecordDetail_fields { display: grid; grid-template-columns: 150px 1fr; gap: 10px 16px; }
+.RecordDetail_label { color: #6b6280; }
+.RecordDetail_tags { margin-top: 18px; display: flex; gap: 6px; flex-wrap: wrap; padding: 0; list-style: none; }
+.RecordDetail_tags li { background: #efe9f8; color: #4a2f76; border-radius: 12px; padding: 3px 10px; font-size: 12px; }
+.ActivityFeed { margin-top: 24px; }
+.ActivityFeed_title { font-size: 13px; font-weight: 700; text-transform: uppercase; color: #6b6280; margin-bottom: 10px; }
+.ActivityFeed_item { border-left: 3px solid #e4e0ec; padding: 8px 0 8px 12px; margin-bottom: 10px; }
+.ActivityFeed_meta { color: #8b839e; font-size: 12px; margin-top: 3px; }

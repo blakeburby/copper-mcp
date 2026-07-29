@@ -1,17 +1,17 @@
-import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { copperRequest } from "../copperClient.js";
-import { errorResult, textResult } from "./result.js";
+import { z } from "zod";
+import { getBrowserManager } from "../browser/browserManager.js";
+import { requireAuthenticatedPage } from "../browser/sessionManager.js";
+import { ActivitiesPage } from "../pages/activitiesPage.js";
+import { parentTypeSchema, confirmSchema } from "../schemas/common.js";
+import { okResult } from "../utils/response.js";
+import type { WritePreview } from "../types/records.js";
+import { runTool } from "./_helpers.js";
 
 /**
- * The ONE write tool in this server. Everything else is read-only by design —
- * a deliberately narrow blast radius. Logging a note/call cannot delete or
- * overwrite existing CRM data; it only appends an activity to a record.
- *
- * Copper models an activity type as { category, id }. The default "Note" is
- * category "user", id 0 — the only type callers usually need. Only "user"
- * activities can be created via the API.
- * Docs: https://developer.copper.com/activities/create-a-new-activity.html
+ * WRITE TOOL. Appends a note/activity to a record via the web UI. Guarded by a
+ * confirm gate (preview unless confirm=true) and the process-wide mutation lock.
+ * Submits once and verifies; never blindly re-submits.
  */
 export function registerLogActivity(server: McpServer): void {
   server.registerTool(
@@ -19,44 +19,55 @@ export function registerLogActivity(server: McpServer): void {
     {
       title: "Log Activity (write)",
       description:
-        "Log a note or call activity onto a person, company, opportunity, or lead in Copper. " +
-        "This is the only tool that writes to the CRM — it APPENDS an activity (it never edits " +
-        "or deletes existing data). Use it to record a call summary or leave a reminder note on " +
-        "a record. Defaults to a 'Note' activity. Returns the created activity.",
+        "Log a note or call activity onto a person, company, opportunity, or lead in Copper. This " +
+        "WRITES to the CRM (it appends an activity; it never edits or deletes). With confirm=false " +
+        "(default) it returns a preview and does NOT submit. Set confirm=true to actually log it. " +
+        "After submitting it verifies the activity appears and returns its details.",
       inputSchema: {
-        parent: z
-          .object({
-            id: z.number().int().describe("The id of the record to log against."),
-            type: z
-              .enum(["person", "company", "opportunity", "lead"])
-              .describe("The kind of record the activity is attached to."),
-          })
-          .describe("The CRM record this activity is logged on."),
-        details: z
+        parentType: parentTypeSchema,
+        parentId: z
           .string()
-          .describe("The note / activity text to record."),
-        activity_type_id: z
-          .number()
-          .int()
-          .optional()
-          .describe(
-            "Copper activity type id. Defaults to 0 (Note). Other user-defined types can be " +
-              "found via the Copper UI; leave unset to log a plain note.",
-          ),
+          .min(1)
+          .describe("Id of the record to log against (as shown in the record URL)."),
+        activityType: z
+          .string()
+          .default("Note")
+          .describe("Activity type label, e.g. 'Note' or 'Call'. Defaults to 'Note'."),
+        details: z.string().min(1).describe("The note / activity text to record."),
+        confirm: confirmSchema,
       },
     },
-    async ({ parent, details, activity_type_id }) => {
-      try {
-        const body = {
-          parent,
-          type: { category: "user", id: activity_type_id ?? 0 },
-          details,
-        };
-        const activity = await copperRequest("POST", "/activities", body);
-        return textResult(activity);
-      } catch (err) {
-        return errorResult(err);
-      }
-    },
+    async ({ parentType, parentId, activityType, details, confirm }) =>
+      runTool("log_activity", async (log) => {
+        if (!confirm) {
+          const preview: WritePreview = {
+            action: "log_activity",
+            willSubmit: false,
+            summary: { parentType, parentId, activityType, details },
+            note: "Preview only — nothing was written. Re-run with confirm=true to log this activity.",
+          };
+          return okResult(
+            "Preview: this activity was NOT logged. Set confirm=true to submit.",
+            { preview },
+            { source: "copper-web-ui", confirmed: false },
+          );
+        }
+
+        const manager = getBrowserManager();
+        return manager.withMutation(async () => {
+          const page = await requireAuthenticatedPage(log);
+          const activity = await new ActivitiesPage(page, log).logActivity({
+            parentType,
+            parentId,
+            activityType,
+            details,
+          });
+          return okResult(
+            "Activity logged and verified.",
+            { activity },
+            { source: "copper-web-ui", confirmed: true },
+          );
+        });
+      }),
   );
 }

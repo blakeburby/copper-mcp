@@ -1,0 +1,8 @@
+2026/07/28-23:16:50.022 13ee99f Reusing MANIFEST /Users/blakeburby/Projects/copper-mcp/.copper-profile-miniac/Default/Local Storage/leveldb/MANIFEST-000001
+2026/07/28-23:16:50.044 13ee99f Recovering log #8
+2026/07/28-23:16:50.044 13ee99f Level-0 table #10: started
+2026/07/28-23:16:50.049 13ee99f Level-0 table #10: 14979 bytes OK
+2026/07/28-23:16:50.049 13ee99f Recovering log #10
+2026/07/28-23:16:50.050 13ee99f Reusing old log /Users/blakeburby/Projects/copper-mcp/.copper-profile-miniac/Default/Local Storage/leveldb/000010.log 
+2026/07/28-23:16:50.054 13ee99f Delete type=2 #11
+2026/07/28-23:16:50.054 13ee99f Delete type=0 #8

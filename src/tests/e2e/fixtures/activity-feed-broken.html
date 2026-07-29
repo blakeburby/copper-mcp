@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><title>Broken</title>
+<link rel="stylesheet" href="./_copper.css"/></head>
+<body>
+  <!--
+    THE HAZARD FIXTURE. Simulates Copper renaming its feed classes: the record
+    renders, but the feed container selector no longer matches anything.
+    readFeed() MUST throw SELECTOR_FAILURE here. If it ever returns [] instead,
+    a scoring system would read this contact as Cold — which is the exact bug
+    this whole contract exists to prevent.
+  -->
+  <div class="WebAppMain"><div class="WebAppContent">
+    <div class="SomeRenamedFeedContainer">
+      <div class="SomeRenamedItem">You logged a Phone Call</div>
+    </div>
+  </div></div>
+</body></html>

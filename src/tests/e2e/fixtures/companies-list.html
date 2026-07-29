@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Companies</title>
+    <link rel="stylesheet" href="./_copper.css" />
+  </head>
+  <body>
+    <!-- Mirrors the real Copper Companies list table (captured 2026-07-24). Fictional data. -->
+    <div class="WebAppNav">
+      <div class="WebAppNav_brand">Blake Burby's Company</div>
+      <a href="#/feed">Feed</a>
+      <a href="#/browse/list/tasks/default">Tasks</a>
+      <div class="WebAppNav_section">Contacts</div>
+      <a href="#/browse/list/people/default">People</a>
+      <a href="#/browse/list/companies/default" class="is-active">Companies</a>
+    </div>
+
+    <div class="WebAppMain">
+      <div class="WebAppHeader">
+        <h1 class="WebAppHeader_title">Companies</h1>
+        <div class="WebAppHeader_search">
+          <input type="text" class="GlobalSearchTypeAhead_textField"
+                 placeholder="Search by name, email, domain or phone number" />
+        </div>
+      </div>
+
+      <div class="WebAppContent">
+        <table class="ListViewTable">
+          <thead>
+            <tr class="et-tr ember-view">
+              <th>Company</th><th>Domain</th><th>Phone</th><th>Owner</th>
+            </tr>
+          </thead>
+          <tbody class="ember-view ListViewTableBody">
+            <tr class="et-tr ember-view">
+              <td class="is-fixed-left ember-view">
+                <div class="browse_field CardinalField"><div class="CardinalField_read">
+                  <a class="ember-view fullProfileLink" href="#/browse/list/companies/default?fullProfile=companies-77183427">
+                    <div class="AvatarPill"><span class="AvatarPill_text">Dunder Mifflin</span></div>
+                  </a>
+                </div></div>
+              </td>
+              <td>dundermifflin.example</td><td>555-0100</td><td>Blake Burby</td>
+            </tr>
+            <tr class="et-tr ember-view">
+              <td class="is-fixed-left ember-view">
+                <div class="browse_field CardinalField"><div class="CardinalField_read">
+                  <a class="ember-view fullProfileLink" href="#/browse/list/companies/default?fullProfile=companies-77183430">
+                    <div class="AvatarPill"><span class="AvatarPill_text">Vance Refrigeration</span></div>
+                  </a>
+                </div></div>
+              </td>
+              <td>vancerefrigeration.example</td><td>555-0142</td><td>Blake Burby</td>
+            </tr>
+            <tr class="et-tr ember-view">
+              <td class="is-fixed-left ember-view">
+                <div class="browse_field CardinalField"><div class="CardinalField_read">
+                  <a class="ember-view fullProfileLink" href="#/browse/list/companies/default?fullProfile=companies-77183433">
+                    <div class="AvatarPill"><span class="AvatarPill_text">Utica Paper Group</span></div>
+                  </a>
+                </div></div>
+              </td>
+              <td>uticapaper.example</td><td>555-0177</td><td>Blake Burby</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </body>
+</html>

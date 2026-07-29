@@ -3,3 +3,18 @@ dist/
 *.log
 .env
 .DS_Store
+
+# Persistent browser profile — contains the logged-in Copper session (cookies,
+# storage state). NEVER commit this.
+.copper-profile/
+*.copper-profile/
+
+# Diagnostics: failure screenshots + HTML snapshots.
+artifacts/
+*.png
+
+# Test / tooling output
+coverage/
+playwright-report/
+test-results/
+.vitest/
