@@ -51,6 +51,32 @@
           </div>
         </div>
 
+        <!--
+          Auto-logged EMAIL (correspondence), mirroring the real Miniac DOM
+          captured live 2026-07-28: sender is an internal user (pill link has NO
+          href), recipient is the CONTACT (pill is an <a> to /#/contact/<id>).
+          Direction is read from the parties, not text: contact = recipient →
+          OUTBOUND.
+        -->
+        <div class="ActivityItem ActivityItem-correspondence is-labeled ember-view">
+          <div class="ActivityItem_container fs-mask">
+            <div class="ActivityItem_contentSection"><div class="ActivityItem_contentWrapper">
+              <div class="ActivityItem_header withPill ActivityItem_header-emailHeader">
+                <span class="ActivityItem_headerContent correspondence">
+                  <span class="AvatarPill ActivityItem_senderPill"><a class="ember-view">Stephen Roesler</a></span>
+                  to
+                  <a class="AvatarPill-emailLink ActivityItem_firstRecipientPill ember-view"
+                     href="https://app.copper.com/companies/601304/app/#/contact/181129772">Abbi Lewis</a>
+                </span>
+              </div>
+              <div class="ActivityItem_date">
+                <time datetime="2026-03-16T16:33:00.000Z" title="Mar 16, 2026 at 12:33 PM">12:33 PM</time>
+              </div>
+              <div class="ActivityItem_content u-ellipsis"><span class="ActivityItem_subject u-ellipsis"><span class="ActivityItem_subjectText">don't let your ideas get killed in the room</span></span></div>
+            </div></div>
+          </div>
+        </div>
+
       </div>
     </div>
   </div></div>

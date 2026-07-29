@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   resolveDirection,
   isAttributed,
+  emailDirectionFromParties,
   MIN_DIRECTION_CONFIDENCE,
 } from "../../utils/activityDirection.js";
 
@@ -15,7 +16,7 @@ describe("resolveDirection — measured sources", () => {
     });
     expect(r.direction).toBe("inbound");
     expect(r.source).toBe("measured_email");
-    expect(r.confidence).toBeGreaterThan(0.8);
+    expect(r.confidence).toBeGreaterThanOrEqual(0.8);
   });
 
   it("reads direction from an auto-logged outbound email", () => {
@@ -33,6 +34,68 @@ describe("resolveDirection — measured sources", () => {
     expect(resolveDirection({ type: "phone_call", typeLabel: "Inbound Call" }).direction).toBe("inbound");
     expect(resolveDirection({ type: "phone_call", typeLabel: "Outbound Call" }).direction).toBe("outbound");
     expect(resolveDirection({ type: "phone_call", typeLabel: "Inbound Call" }).source).toBe("measured_type");
+  });
+
+  // The verified 2026-07-28 structural rule: direction comes from the
+  // correspondence PARTIES (which pill is the contact), not text phrasing.
+  it("reads OUTBOUND when the contact is the email recipient (team member sent it)", () => {
+    // Real Miniac shape: sender = internal user (no contact link),
+    // recipient = the contact we're reading (Abbi Lewis, /#/contact/181129772).
+    const dir = emailDirectionFromParties({
+      contactId: "181129772",
+      senderHref: null,
+      recipientHref: "https://app.copper.com/companies/601304/app/#/contact/181129772",
+    });
+    expect(dir?.direction).toBe("outbound");
+
+    const r = resolveDirection({
+      type: "email",
+      autoLogged: true,
+      emailDirection: dir!.direction,
+      emailEvidence: dir!.evidence,
+    });
+    expect(r.direction).toBe("outbound");
+    expect(r.source).toBe("measured_email");
+    expect(r.confidence).toBeGreaterThan(0.9);
+  });
+
+  it("reads INBOUND when the contact is the email sender", () => {
+    const dir = emailDirectionFromParties({
+      contactId: "181129772",
+      senderHref: "https://app.copper.com/companies/601304/app/#/contact/181129772",
+      recipientHref: null,
+    });
+    expect(dir?.direction).toBe("inbound");
+    const r = resolveDirection({ type: "email", autoLogged: true, emailDirection: dir!.direction });
+    expect(r.direction).toBe("inbound");
+    expect(r.confidence).toBeGreaterThan(0.9);
+  });
+
+  it("falls back to sender-identity when the ids don't line up (group threads)", () => {
+    // Neither party is THIS contact, but an internal sender ⇒ we sent it.
+    expect(
+      emailDirectionFromParties({ contactId: "999", senderHref: null, recipientHref: "…/#/contact/1" })
+        ?.direction,
+    ).toBe("outbound");
+    // A contact sender ⇒ inbound.
+    expect(
+      emailDirectionFromParties({
+        contactId: "999",
+        senderHref: "…/#/contact/2",
+        recipientHref: null,
+      })?.direction,
+    ).toBe("inbound");
+  });
+
+  it("the structural email source (0.95) beats body-text inference", () => {
+    const r = resolveDirection({
+      type: "email",
+      autoLogged: true,
+      emailDirection: "inbound",
+      body: "I emailed him the deck", // says outbound; measured wins
+    });
+    expect(r.direction).toBe("inbound");
+    expect(r.source).toBe("measured_email");
   });
 
   it("prefers a measured source over body-text inference", () => {

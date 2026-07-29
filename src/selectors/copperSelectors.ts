@@ -345,6 +345,33 @@ export const activityFeed = {
     (s) => asScope(s).locator("[class*='ActivityItem_content' i]").first(),
     true,
   ),
+  /**
+   * Auto-logged EMAIL (correspondence) markers. VERIFIED 2026-07-28 on a live
+   * account with email integration (Miniac, company 601304): an auto-logged email
+   * renders as `.ActivityItem.ActivityItem-correspondence` with the header
+   * `.ActivityItem_header-emailHeader`, structured as
+   * `.ActivityItem_senderPill` "to" `.ActivityItem_firstRecipientPill`. There is
+   * NO explicit direction class; direction is derived from which party is the
+   * contact (the pill whose link is `/#/contact/<id>`).
+   */
+  emailHeader: entry(
+    "activity item email header",
+    (s) => asScope(s).locator(".ActivityItem_header-emailHeader").first(),
+    (s) => asScope(s).locator("[class*='emailHeader' i]").first(),
+    true,
+  ),
+  senderPill: entry(
+    "email sender pill",
+    (s) => asScope(s).locator(".ActivityItem_senderPill").first(),
+    (s) => asScope(s).locator("[class*='senderPill' i]").first(),
+    true,
+  ),
+  recipientPill: entry(
+    "email first-recipient pill",
+    (s) => asScope(s).locator(".ActivityItem_firstRecipientPill").first(),
+    (s) => asScope(s).locator("[class*='RecipientPill' i]").first(),
+    true,
+  ),
 };
 
 /**

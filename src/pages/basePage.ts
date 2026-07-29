@@ -567,7 +567,11 @@ export class BasePage {
       const batch = await rows
         .evaluateAll((els) =>
           els.map((el) => {
+            // Rows carry several fullProfileLinks (person, company, …). Prefer the
+            // PERSON link (`…people-<id>`) — verified 2026-07-28 that a plain
+            // "first link" would sometimes capture the company instead.
             const a =
+              el.querySelector("a.fullProfileLink[href*='people-']") ??
               el.querySelector("a.fullProfileLink") ??
               el.querySelector("a[href*='fullProfile='], a[href*='#/']");
             const href = a?.getAttribute("href") ?? null;

@@ -73,6 +73,10 @@ function isKnownReadPost(path: string): boolean {
   if (/\/search(\/|$)/.test(p)) return true; // *_api/search (contacts/tasks/agenda/suggestions)
   if (/\/reports?_api\//.test(p)) return true; // reports_api/activity_by_user
   if (/\/analytics(\/|$)/.test(p) || /\/track(\/|$)/.test(p)) return true;
+  // Observed 2026-07-28 on a live account (Miniac): the UI polls
+  // `POST /api/v2/companies/<id>/split_flaps/check` — a read (checks whether the
+  // animated counters changed), NOT a mutation. `check` is a read verb; allow it.
+  if (/\/split_flaps(\/|$)/.test(p) || /\/check(\/|$)/.test(p)) return true;
   // General query verbs — read shapes that don't mutate. Deliberately excludes
   // create/update/delete/save and bare-resource POSTs, which are writes.
   if (/\/(list|index|lookup|autocomplete|suggestions?|count|filter|show|batch_get)(\/|$)/.test(p)) {

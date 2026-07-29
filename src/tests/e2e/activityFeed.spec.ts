@@ -5,6 +5,7 @@ import {
   parseActivityTimestamp,
   classifyActivityHeader,
 } from "../../utils/activityParser.js";
+import { emailDirectionFromParties } from "../../utils/activityDirection.js";
 import { fixtureUrl } from "./helpers.js";
 
 /**
@@ -20,7 +21,7 @@ test.describe("activity feed extraction", () => {
     const bp = new BasePage(page);
     const container = await bp.resolve(activityFeed.list, { timeout: 1_000 });
     const items = activityFeed.item.primary(container);
-    expect(await items.count()).toBe(3);
+    expect(await items.count()).toBe(4);
   });
 
   test("reads the ISO timestamp from the datetime attribute, not the rendered text", async ({ page }) => {
@@ -73,6 +74,40 @@ test.describe("activity feed extraction", () => {
     );
     expect(meta.actorKind).toBe("system");
     expect(meta.type).toBe("record_created");
+  });
+
+  test("reads OUTBOUND from an auto-logged email's parties (contact is recipient)", async ({ page }) => {
+    await page.goto(fixtureUrl("activity-feed.html"));
+    const bp = new BasePage(page);
+    const container = await bp.resolve(activityFeed.list, { timeout: 1_000 });
+    const email = activityFeed.item.primary(container).nth(3);
+
+    // The correspondence markers and pills resolve (selector validation).
+    expect(await activityFeed.emailHeader.primary(email).count()).toBe(1);
+
+    // Extract the parties exactly as ActivityFeedPage.readEmailParties does.
+    const parties = await email.evaluate((el: Element) => {
+      const hrefOf = (sel: string) => {
+        const p = el.querySelector(sel);
+        if (!p) return null;
+        const a = p.matches("a") ? p : p.querySelector("a");
+        return (a && a.getAttribute("href")) || p.getAttribute("href") || null;
+      };
+      return {
+        sender: hrefOf(".ActivityItem_senderPill"),
+        recipient: hrefOf(".ActivityItem_firstRecipientPill"),
+      };
+    });
+    // Internal sender → no contact link; recipient → the contact's /#/contact/ link.
+    expect(parties.sender).toBeNull();
+    expect(parties.recipient).toContain("/#/contact/181129772");
+
+    const dir = emailDirectionFromParties({
+      contactId: "181129772",
+      senderHref: parties.sender,
+      recipientHref: parties.recipient,
+    });
+    expect(dir?.direction).toBe("outbound");
   });
 
   test("an empty feed still resolves its container (confirmed_empty)", async ({ page }) => {

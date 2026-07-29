@@ -28,7 +28,7 @@ import {
   classifyActivityHeader,
   actionPhrase,
 } from "../utils/activityParser.js";
-import { resolveDirection } from "../utils/activityDirection.js";
+import { resolveDirection, emailDirectionFromParties } from "../utils/activityDirection.js";
 import type { ActivitySummary, ActivityFeedResult } from "../types/records.js";
 import { CopperToolError } from "../types/errors.js";
 import { captureDiagnostics } from "../browser/diagnostics.js";
@@ -105,7 +105,7 @@ export class ActivityFeedPage extends BasePage {
 
     for (let i = 0; i < itemsSeen && activities.length < limit; i++) {
       const item = items.nth(i);
-      const parsed = await this.parseItem(item);
+      const parsed = await this.parseItem(item, recordId);
       if (parsed.occurredAtIso) itemsParsed++;
 
       if (sinceMs !== null && parsed.occurredAtIso) {
@@ -151,7 +151,7 @@ export class ActivityFeedPage extends BasePage {
   }
 
   /** Extract one feed item. DOM reads here, classification in the pure modules. */
-  private async parseItem(item: Locator): Promise<ActivitySummary> {
+  private async parseItem(item: Locator, recordId: string): Promise<ActivitySummary> {
     const header = await this.textOf(activityFeed.header.primary(item)).catch(() => null);
     const actor = await this.textOf(activityFeed.actorLink.primary(item)).catch(() => null);
 
@@ -161,32 +161,79 @@ export class ActivityFeedPage extends BasePage {
 
     const body = await this.textOf(activityFeed.body.primary(item)).catch(() => null);
 
+    // Auto-logged email (correspondence): read the sender/recipient pills in one
+    // page call so direction is MEASURED from the parties, not inferred from text.
+    const email = await this.readEmailParties(item);
+
     const meta = classifyActivityHeader(header, actor);
+    // A correspondence item is unambiguously an email even when the header lacks
+    // the "logged an Email" phrasing the classifier keys on.
+    const type = email.isEmail ? "email" : meta.type;
+    const channel = email.isEmail ? "email" : meta.channel;
+
+    const emailDir = email.isEmail
+      ? emailDirectionFromParties({
+          contactId: recordId,
+          senderHref: email.senderHref,
+          recipientHref: email.recipientHref,
+        })
+      : null;
+
     const direction = resolveDirection({
-      type: meta.type,
+      type,
       header,
       body,
       actor,
-      // Auto-logged detection needs an integrated account to verify; until then
-      // manual logs are the only case we see. See activityDirection.ts.
-      autoLogged: false,
+      autoLogged: email.isEmail,
+      emailDirection: emailDir?.direction ?? null,
+      emailEvidence: emailDir?.evidence ?? null,
     });
 
     return {
       id: null,
-      type: meta.type,
+      type,
       details: actionPhrase(header, actor) ?? body,
       date: parseActivityTimestamp(datetimeAttr),
       author: actor,
       occurredAtIso: parseActivityTimestamp(datetimeAttr),
       occurredAtRaw,
       actorKind: meta.actorKind,
-      channel: meta.channel,
+      channel,
       direction: direction.direction,
       directionSource: direction.source,
       directionConfidence: direction.confidence,
       directionEvidence: direction.evidence,
       inferred: meta.inferred,
     };
+  }
+
+  /**
+   * Read the correspondence sender/recipient hrefs for one item in a single page
+   * evaluation. Mirrors the `activityFeed.emailHeader/senderPill/recipientPill`
+   * selectors; a CRM contact's pill links to `/#/contact/<id>`, an internal
+   * user's does not — which is what lets emailDirectionFromParties decide.
+   */
+  private async readEmailParties(
+    item: Locator,
+  ): Promise<{ isEmail: boolean; senderHref: string | null; recipientHref: string | null }> {
+    return item
+      .evaluate((el: Element) => {
+        const isEmail =
+          !!el.querySelector("[class*='emailHeader']") ||
+          (el.getAttribute("class") || "").includes("ActivityItem-correspondence");
+        if (!isEmail) return { isEmail: false, senderHref: null, recipientHref: null };
+        const hrefOf = (sel: string): string | null => {
+          const p = el.querySelector(sel);
+          if (!p) return null;
+          const a = p.matches("a") ? p : p.querySelector("a");
+          return (a && a.getAttribute("href")) || p.getAttribute("href") || null;
+        };
+        return {
+          isEmail: true,
+          senderHref: hrefOf(".ActivityItem_senderPill"),
+          recipientHref: hrefOf(".ActivityItem_firstRecipientPill"),
+        };
+      })
+      .catch(() => ({ isEmail: false, senderHref: null, recipientHref: null }));
   }
 }

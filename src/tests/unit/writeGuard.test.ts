@@ -89,6 +89,8 @@ describe("write guard — Copper reads via POST must survive", () => {
     "https://app.copper.com/api/v1/companies/616931/contact_suggestions_api/search",
     "https://app.copper.com/api/v1/companies/616931/reports_api/activity_by_user",
     "https://app.copper.com/api/v2/companies/616931/analytics/track",
+    // Observed 2026-07-28 on the live Miniac account — a UI poll, not a mutation.
+    "https://app.copper.com/api/v2/companies/601304/split_flaps/check",
   ];
 
   it("lets every observed read-POST through in block mode", async () => {

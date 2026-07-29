@@ -11,10 +11,10 @@
  * logged activity records who *logged* it (always the rep), not who *initiated*
  * the interaction. Direction therefore has three possible provenances:
  *
- *   1. MEASURED  — an auto-logged email from Copper's Google/email integration,
- *                  where the actor is genuinely the sender. Highest confidence.
- *                  (Present on accounts with email integration connected; NOT
- *                  verifiable on a dev account without it — see UNVERIFIED note.)
+ *   1. MEASURED  — an auto-logged email from Copper's Google/email integration.
+ *                  Direction comes from the correspondence PARTIES (which pill is
+ *                  the contact), verified live 2026-07-28 on an email-integrated
+ *                  account — see emailDirectionFromParties. Highest confidence.
  *   2. MEASURED  — a custom activity type whose name encodes direction, e.g.
  *                  "Inbound Call" / "Outbound Call". Requires CRM config.
  *   3. INFERRED  — phrasing heuristics over the note body. Depends entirely on
@@ -67,6 +67,59 @@ export interface DirectionInput {
   actor?: string | null;
   /** True when the activity was created by Copper's integration, not a human. */
   autoLogged?: boolean;
+  /**
+   * For an auto-logged email: the direction derived STRUCTURALLY from the
+   * sender/recipient pills (see emailDirectionFromParties). When present this is
+   * the measured, high-confidence source and supersedes the text heuristics.
+   */
+  emailDirection?: "inbound" | "outbound" | null;
+  /** Human-readable justification for emailDirection, for the audit tooltip. */
+  emailEvidence?: string | null;
+}
+
+/**
+ * Decide an auto-logged email's direction from the correspondence parties.
+ *
+ * VERIFIED 2026-07-28 on a live email-integrated account: the sender/recipient
+ * are AvatarPills; a CRM contact's pill links to `/#/contact/<id>` (or
+ * `people-<id>`), while an internal team member's pill has no such link. So:
+ *
+ *   - the CONTACT is the sender      → inbound  (they wrote to us)
+ *   - the CONTACT is a recipient     → outbound (we wrote to them)
+ *   - sender is an internal user     → outbound (we sent it)      [fallback]
+ *   - sender is some other contact   → inbound  (a contact sent it) [fallback]
+ *
+ * Returns null when neither party can be classified, so the caller falls through
+ * to `unknown` rather than guessing.
+ */
+export function emailDirectionFromParties(opts: {
+  contactId: string;
+  senderHref: string | null;
+  recipientHref: string | null;
+}): { direction: "inbound" | "outbound"; evidence: string } | null {
+  const { contactId, senderHref, recipientHref } = opts;
+  const isThisContact = (href: string | null): boolean =>
+    !!href && new RegExp(`(?:contact/|people-)${contactId}(?:\\D|$)`).test(href);
+  const linksToAContact = (href: string | null): boolean =>
+    !!href && /\/contact\/\d|people-\d/.test(href);
+
+  // Primary: match the contact whose feed we're reading against the parties.
+  if (isThisContact(senderHref)) {
+    return { direction: "inbound", evidence: "auto-logged email sent BY this contact" };
+  }
+  if (isThisContact(recipientHref)) {
+    return { direction: "outbound", evidence: "auto-logged email sent TO this contact" };
+  }
+  // Fallback when the ids don't line up (group threads, alias addresses): an
+  // internal sender (no contact link) means we sent it; a contact sender means
+  // it came in.
+  if (senderHref === null || senderHref === "") {
+    return { direction: "outbound", evidence: "auto-logged email; sender is an internal user" };
+  }
+  if (linksToAContact(senderHref)) {
+    return { direction: "inbound", evidence: "auto-logged email; sender is a CRM contact" };
+  }
+  return null;
 }
 
 /**
@@ -97,17 +150,28 @@ function fromTypeLabel(label: string | null | undefined): DirectionResult | null
 
 /**
  * Rule 1 — an auto-logged email. Copper's email integration records the real
- * sender, so a non-rep actor means the buyer wrote to you.
+ * sender/recipient, so direction is MEASURED, not inferred.
  *
- * UNVERIFIED: the exact rendering of auto-logged email items could not be
- * captured (the dev account has no email integration connected). The header
- * patterns below are best-effort and must be confirmed against an account that
- * does — see the README manual-validation checklist.
+ * VERIFIED 2026-07-28 against a live email-integrated account. The structural
+ * signal (`emailDirection`, computed by emailDirectionFromParties during DOM
+ * parsing) is authoritative. The older header/actor phrasing is kept only as a
+ * lower-confidence fallback for the rare item where the parties couldn't be read.
  */
 function fromAutoLoggedEmail(input: DirectionInput): DirectionResult | null {
   if (!input.autoLogged) return null;
   if (input.type !== "email") return null;
 
+  // Measured: the sender/recipient pills already told us the direction.
+  if (input.emailDirection) {
+    return {
+      direction: input.emailDirection,
+      source: "measured_email",
+      confidence: 0.95,
+      evidence: input.emailEvidence ?? `auto-logged email (${input.emailDirection})`,
+    };
+  }
+
+  // Fallback: header/actor phrasing when the parties couldn't be classified.
   const header = (input.header ?? "").trim();
   const actor = (input.actor ?? "").trim();
 
@@ -115,24 +179,24 @@ function fromAutoLoggedEmail(input: DirectionInput): DirectionResult | null {
     return {
       direction: "inbound",
       source: "measured_email",
-      confidence: 0.95,
+      confidence: 0.8,
       evidence: "auto-logged email addressed to you",
-    };
-  }
-  if (actor && !/^you$/i.test(actor)) {
-    return {
-      direction: "inbound",
-      source: "measured_email",
-      confidence: 0.9,
-      evidence: `auto-logged email sent by ${actor}`,
     };
   }
   if (/^you$/i.test(actor)) {
     return {
       direction: "outbound",
       source: "measured_email",
-      confidence: 0.9,
+      confidence: 0.8,
       evidence: "auto-logged email sent by you",
+    };
+  }
+  if (actor) {
+    return {
+      direction: "inbound",
+      source: "measured_email",
+      confidence: 0.8,
+      evidence: `auto-logged email sent by ${actor}`,
     };
   }
   return null;
