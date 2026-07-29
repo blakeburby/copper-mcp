@@ -43,15 +43,42 @@ export function registerGetPersonActivities(server: McpServer): void {
           .datetime()
           .optional()
           .describe("Only return activities at or after this ISO-8601 instant."),
+        source: z
+          .enum(["auto", "json", "ui"])
+          .default("auto")
+          .describe(
+            "Where to read from. 'auto' (default) uses the fast JSON endpoint and falls back to " +
+              "the DOM feed on any failure; 'json' forces the JSON endpoint; 'ui' forces the DOM " +
+              "feed. Both return the same shape — 'json'/'ui' exist for A/B correctness checks.",
+          ),
       },
     },
-    async ({ personId, limit, sinceIso }) =>
+    async ({ personId, limit, sinceIso, source }) =>
       runTool("get_person_activities", async (log) => {
         const page = await requireAuthenticatedPage(log);
-        const result = await new ActivityFeedPage(page, log).readFeed("person", personId, {
-          limit,
-          sinceIso,
-        });
+        const feed = new ActivityFeedPage(page, log);
+
+        // Fast path (JSON) with automatic fallback to the proven DOM reader.
+        let result;
+        let usedSource: "json" | "ui";
+        if (source === "ui") {
+          result = await feed.readFeed("person", personId, { limit, sinceIso });
+          usedSource = "ui";
+        } else if (source === "json") {
+          result = await feed.readFeedComposite(personId, { limit, sinceIso });
+          usedSource = "json";
+        } else {
+          try {
+            result = await feed.readFeedComposite(personId, { limit, sinceIso });
+            usedSource = "json";
+          } catch (err) {
+            log.warn("JSON activity read failed; falling back to the DOM feed.", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            result = await feed.readFeed("person", personId, { limit, sinceIso });
+            usedSource = "ui";
+          }
+        }
 
         const attributed = result.activities.filter((a) => a.direction !== "unknown").length;
         const unattributed = result.activities.length - attributed;
@@ -67,6 +94,7 @@ export function registerGetPersonActivities(server: McpServer): void {
           {
             recordCount: result.activities.length,
             feedState: result.feedState,
+            source: usedSource,
             itemsSeen: result.itemsSeen,
             itemsParsed: result.itemsParsed,
             parserVersion: result.parserVersion,

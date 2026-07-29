@@ -19,13 +19,41 @@ export function registerGetPerson(server: McpServer): void {
           .string()
           .min(1)
           .describe("The Copper person id (as shown in the record URL)."),
+        source: z
+          .enum(["auto", "json", "ui"])
+          .default("auto")
+          .describe(
+            "Where to read from. 'auto' (default) uses the fast JSON endpoint and falls back to " +
+              "the DOM record on any failure; 'json'/'ui' force one path (same shape; for A/B checks).",
+          ),
       },
     },
-    async ({ personId }) =>
+    async ({ personId, source }) =>
       runTool("get_person", async (log) => {
         const page = await requireAuthenticatedPage(log);
-        const person = await new PeoplePage(page, log).get(personId);
-        return okResult(`Loaded person "${person.name ?? personId}".`, { person });
+        const people = new PeoplePage(page, log);
+
+        let person;
+        let usedSource: "json" | "ui";
+        if (source === "ui") {
+          person = await people.get(personId);
+          usedSource = "ui";
+        } else if (source === "json") {
+          person = await people.getJson(personId);
+          usedSource = "json";
+        } else {
+          try {
+            person = await people.getJson(personId);
+            usedSource = "json";
+          } catch (err) {
+            log.warn("JSON person read failed; falling back to the DOM record.", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            person = await people.get(personId);
+            usedSource = "ui";
+          }
+        }
+        return okResult(`Loaded person "${person.name ?? personId}".`, { person }, { source: usedSource });
       }),
   );
 }

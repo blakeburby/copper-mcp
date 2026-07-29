@@ -29,6 +29,11 @@ import {
   actionPhrase,
 } from "../utils/activityParser.js";
 import { resolveDirection, emailDirectionFromParties } from "../utils/activityDirection.js";
+import {
+  mapCompositeItems,
+  extractCompositeItems,
+  COMPOSITE_PARSER_VERSION,
+} from "../utils/compositeActivity.js";
 import type { ActivitySummary, ActivityFeedResult } from "../types/records.js";
 import { CopperToolError } from "../types/errors.js";
 import { captureDiagnostics } from "../browser/diagnostics.js";
@@ -147,6 +152,81 @@ export class ActivityFeedPage extends BasePage {
       itemsParsed,
       parseWarnings,
       parserVersion: PARSER_VERSION,
+    };
+  }
+
+  /**
+   * FAST path — read a contact's activity from Copper's own JSON endpoint
+   * (`contacts_api/<id>/activity_log_composite`) via an authenticated in-page
+   * fetch, instead of navigating the SPA. One request returns the full history
+   * with structured parties, so direction is measured, not inferred.
+   *
+   * The page must already be on the authenticated app shell (the account id is
+   * read from the URL). A non-200 or non-JSON response THROWS SELECTOR_FAILURE —
+   * a failed fetch is never laundered into "confirmed_empty"; the caller falls
+   * back to the DOM reader.
+   */
+  async readFeedComposite(
+    contactId: string,
+    opts: ReadFeedOptions = {},
+  ): Promise<ActivityFeedResult> {
+    const limit = opts.limit ?? 100;
+    const url = this.raw.url();
+    const accountId = url.match(/\/companies\/(\d+)\//)?.[1];
+    if (!accountId) {
+      throw new CopperToolError(
+        "SELECTOR_FAILURE",
+        "Not on the Copper app shell (no account id in URL); cannot use the JSON reader.",
+      );
+    }
+    const origin = new URL(url).origin;
+    const path =
+      `/api/v1/companies/${accountId}/contacts_api/${encodeURIComponent(contactId)}` +
+      `/activity_log_composite?system_activity_type_ids[]=-1&system_activity_type_ids[]=-2` +
+      `&limit=${Math.min(Math.max(limit, 1), 500)}`;
+
+    const res = await this.raw.evaluate(async (u: string) => {
+      try {
+        const r = await fetch(u, { credentials: "include", headers: { accept: "application/json" } });
+        return { status: r.status, body: await r.text() };
+      } catch (e) {
+        return { status: 0, body: e instanceof Error ? e.message : String(e) };
+      }
+    }, `${origin}${path}`);
+
+    if (res.status !== 200) {
+      throw new CopperToolError(
+        "SELECTOR_FAILURE",
+        `activity_log_composite returned HTTP ${res.status}.`,
+      );
+    }
+    let json: unknown;
+    try {
+      json = JSON.parse(res.body);
+    } catch {
+      throw new CopperToolError("SELECTOR_FAILURE", "activity_log_composite response was not JSON.");
+    }
+
+    const items = extractCompositeItems(json);
+    const mapped = mapCompositeItems(items);
+
+    const sinceMs = opts.sinceIso ? Date.parse(opts.sinceIso) : null;
+    const activities: ActivitySummary[] = [];
+    for (const a of mapped) {
+      if (activities.length >= limit) break;
+      // Composite is newest-first; once we pass the cursor, stop.
+      if (sinceMs !== null && a.occurredAtIso && Date.parse(a.occurredAtIso) < sinceMs) break;
+      activities.push(a);
+    }
+
+    const itemsParsed = activities.filter((a) => a.occurredAtIso).length;
+    return {
+      activities,
+      feedState: items.length === 0 ? "confirmed_empty" : "populated",
+      itemsSeen: items.length,
+      itemsParsed,
+      parseWarnings: [],
+      parserVersion: COMPOSITE_PARSER_VERSION,
     };
   }
 

@@ -9,9 +9,74 @@
 import { BasePage } from "./basePage.js";
 import { routes, recordDetail } from "../selectors/copperSelectors.js";
 import type { PersonSummary, PersonDetail, ActivitySummary } from "../types/records.js";
-import { errors } from "../types/errors.js";
+import { errors, CopperToolError } from "../types/errors.js";
 
 export class PeoplePage extends BasePage {
+  /**
+   * FAST path — read a person's detail from `contacts_api/<id>` JSON via an
+   * authenticated in-page fetch, instead of navigating to the record. Returns the
+   * same PersonDetail (activities left empty — read those via
+   * get_person_activities). VERIFIED live 2026-07-28: top-level
+   * first_name/last_name/title/primary_email, with the primary organization
+   * embedded (its `name` is the company). A non-200/non-JSON response THROWS, so
+   * the caller falls back to the DOM reader.
+   */
+  async getJson(personId: string): Promise<PersonDetail> {
+    const url = this.raw.url();
+    const accountId = url.match(/\/companies\/(\d+)\//)?.[1];
+    if (!accountId) {
+      throw new CopperToolError(
+        "SELECTOR_FAILURE",
+        "Not on the Copper app shell (no account id in URL); cannot use the JSON reader.",
+      );
+    }
+    const origin = new URL(url).origin;
+    const res = await this.raw.evaluate(async (u: string) => {
+      try {
+        const r = await fetch(u, { credentials: "include", headers: { accept: "application/json" } });
+        return { status: r.status, body: await r.text() };
+      } catch (e) {
+        return { status: 0, body: e instanceof Error ? e.message : String(e) };
+      }
+    }, `${origin}/api/v1/companies/${accountId}/contacts_api/${encodeURIComponent(personId)}`);
+
+    if (res.status !== 200) {
+      throw new CopperToolError("SELECTOR_FAILURE", `contacts_api returned HTTP ${res.status}.`);
+    }
+    let j: Record<string, unknown>;
+    try {
+      j = JSON.parse(res.body) as Record<string, unknown>;
+    } catch {
+      throw new CopperToolError("SELECTOR_FAILURE", "contacts_api response was not JSON.");
+    }
+
+    const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
+    const first = str(j.first_name);
+    const last = str(j.last_name);
+    const name = str(j.validName) ?? ([first, last].filter(Boolean).join(" ") || null);
+    const org = (j.primary_organization ?? j.organization) as { name?: string } | null | undefined;
+    const companyName = str(org?.name) ?? str(j.company_name);
+    const emails = Array.isArray(j.email_addresses) ? (j.email_addresses as unknown[]).map(String) : [];
+    const email = str(j.primary_email) ?? emails[0] ?? null;
+    const phone = str(j.primary_phone);
+    const tags = Array.isArray(j.tags) ? (j.tags as unknown[]).map(String) : [];
+
+    return {
+      id: personId,
+      name,
+      title: str(j.title),
+      companyName,
+      email,
+      phone,
+      owner: null,
+      tags,
+      recordUrl: `${origin}/companies/${accountId}/app#/contact/${personId}`,
+      emails: emails.length ? emails : email ? [email] : [],
+      phones: phone ? [phone] : [],
+      activities: [],
+    };
+  }
+
   /** Search people by free text; returns lightweight summaries. */
   async search(query: string, limit: number): Promise<PersonSummary[]> {
     return this.read("search_people", async () => {
